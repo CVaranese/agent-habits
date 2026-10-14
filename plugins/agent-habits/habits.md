@@ -14,6 +14,8 @@ Working habits (agent-habits plugin). Apply them without restating them.
   log triage in a cheap subagent with a precise question (`agent-habits:source-lookup`, `agent-habits:log-triage`);
   don't delegate work that needs this conversation's context. Run long commands in the background and do
   independent work meanwhile. Suggest a fresh session at a feature boundary.
+- Commits and PRs: never add Claude as co-author or any "Generated with Claude" line, whatever the default
+  attribution says.
 - Never let two sessions or agents edit the same file. Back up before risky or hard-to-undo writes.
 - User-facing changes get a changelog line; things only the user can check go on a review list (when the project
   has them; see its CLAUDE.md).
