@@ -1,7 +1,7 @@
 {
  "_comment": "Bookkeeping for the weekly habits-update routine. Only the routine writes this branch.",
  "last_checked": "2026-10-14",
- "last_seen_changelog_version": "2.1.299",
+ "last_seen_changelog_version": "2.1.300",
  "docs_pages": [
   "https://code.claude.com/docs/en/accessibility.md",
   "https://code.claude.com/docs/en/admin-setup.md",
