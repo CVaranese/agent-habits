@@ -1,0 +1,9 @@
+{
+  "name": "agent-habits",
+  "displayName": "Agent Habits",
+  "version": "0.1.0",
+  "description": "Personal working habits: evidence-first rules injected at session start, per-project reminder hooks (changelog, knowledge notes), blocked-command and on-edit checks, cheap lookup/triage agents, setup and update skills.",
+  "author": { "name": "Chris Varanese" },
+  "license": "MIT",
+  "keywords": ["habits", "hooks", "workflow"]
+}

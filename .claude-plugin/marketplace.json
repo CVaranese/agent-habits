@@ -1,0 +1,12 @@
+{
+  "name": "agent-habits",
+  "description": "Chris's personal Claude Code habits",
+  "owner": { "name": "Chris Varanese" },
+  "plugins": [
+    {
+      "name": "agent-habits",
+      "source": "./plugins/agent-habits",
+      "description": "Evidence-first habits, per-project reminder hooks, cheap lookup/triage agents, setup and update skills"
+    }
+  ]
+}

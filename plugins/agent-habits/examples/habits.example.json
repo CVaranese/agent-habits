@@ -1,0 +1,36 @@
+{
+  "_comment": "Copy to <project>/.claude/habits.json and edit. All patterns are case-insensitive regexes searched in paths (forward slashes), commands, URLs or queries. docs: files or folders, relative to the project or absolute; a reminder fires at session end if a trigger happened and none of its docs changed afterwards. This example is the Rivals 2 Falcon port's setup.",
+  "block": [
+    {
+      "tools": ["Bash"],
+      "pattern": "(^|[\\s'\"=])/Game/",
+      "unless": "MSYS_NO_PATHCONV=1",
+      "message": "Git Bash rewrites /Game/... arguments: prefix the command with MSYS_NO_PATHCONV=1."
+    }
+  ],
+  "check": [
+    {
+      "path": "/(lua|scripts)/[^/]+\\.lua$",
+      "command": ["C:/Program Files (x86)/Lua/5.1/luac.exe", "-p", "{file}"],
+      "message": "luac -p failed"
+    }
+  ],
+  "reminders": [
+    {
+      "name": "changelog",
+      "on_edit": ["/Lua/Captain\\.Lua$"],
+      "on_command": ["run_ue_python\\.py\\b[^\\n]*\\sR2_APPLY=1(\\s|$)"],
+      "docs": ["D:/git_repos/PM_Character_Exporter/docs/CHANGELOG.md"],
+      "message": "This session changed the mod but docs/CHANGELOG.md has no newer edit. Add a player-facing line under Unreleased (and a REVIEW_QUEUE.md entry for anything the user must check), or say why not."
+    },
+    {
+      "name": "knowledge",
+      "on_command": ["run_pie_session|tools[/\\\\]dolphin|move_report\\.py|probe_\\w+\\.py"],
+      "on_read": ["/reference/|doldecomp"],
+      "on_url": ["^https?://([\\w.-]*\\.)?(rivals2\\.com|dragdown\\.wiki|rukaidata\\.com|ssbwiki\\.com|github\\.com/(rukai|doldecomp))"],
+      "on_search": ["rivals|project\\s*\\+|\\bP\\+|brawl|melee|falcon"],
+      "docs": ["D:/git_repos/PM_Character_Exporter/docs/knowledge", "D:/git_repos/PM_Character_Exporter/docs/characters"],
+      "message": "This session did research but docs/knowledge/ has no newer edit. Record what was learned (Status + Evidence; tested / researched / guess), or say why nothing new was learned."
+    }
+  ]
+}
