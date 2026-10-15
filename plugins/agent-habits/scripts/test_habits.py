@@ -70,6 +70,28 @@ def main():
         run("post-tool", {**s, "tool_name": "WebSearch", "tool_input": {"query": "gadget prices"}}, proj)
         expect("unrelated research ignored", run("stop", s, proj)[0], 0)
         expect("stop_hook_active skips", run("stop", {**s, "stop_hook_active": True}, proj)[0], 0)
+        # token hooks: context warning once per step, big-output nudge, small output quiet
+        tr = proj / "t.jsonl"
+
+        def ctx(n):
+            u = {"input_tokens": 10, "cache_read_input_tokens": n, "cache_creation_input_tokens": 0}
+            tr.write_text(json.dumps({"type": "assistant", "message": {"usage": u}}) + "\n")
+        t = {**s, "transcript_path": str(tr)}
+        ctx(50_000)
+        expect("small context quiet", run("prompt", t, proj)[1].strip(), "")
+        ctx(250_000)
+        out = run("prompt", t, proj)[1]
+        expect("big context warns", "systemMessage" in out and "250K" in out, True)
+        expect("same step quiet", run("prompt", t, proj)[1].strip(), "")
+        ctx(320_000)
+        expect("next step warns again", "320K" in run("prompt", t, proj)[1], True)
+        big = {**t, "tool_name": "Bash", "tool_input": {"command": "cat big"}, "tool_response": {"stdout": "x" * 40_000}}
+        expect("big output nudged", "additionalContext" in run("post-tool", big, proj)[1], True)
+        expect("subagent big output quiet", run("post-tool", {**big, "agent_id": "a1"}, proj)[1].strip(), "")
+        small = {**big, "tool_response": {"stdout": "ok"}}
+        expect("small output quiet", run("post-tool", small, proj)[1].strip(), "")
+        img = {**t, "tool_name": "Read", "tool_input": {"file_path": "C:/x/shot.png"}, "tool_response": {}}
+        expect("image at big context nudged", "Image read" in run("post-tool", img, proj)[1], True)
         # broken config never blocks
         (proj / ".claude" / "habits.json").write_text("{ not json")
         expect("broken config exits 0", run("pre-tool", {**s, "tool_name": "Bash",

@@ -1,5 +1,6 @@
 {
-  "_comment": "Copy to <project>/.claude/habits.json and edit. All patterns are case-insensitive regexes searched in paths (forward slashes), commands, URLs or queries. docs: files or folders, relative to the project or absolute; a reminder fires at session end if a trigger happened and none of its docs changed afterwards. This example is the Rivals 2 Falcon port's setup.",
+  "_comment": "Copy to <project>/.claude/habits.json and edit. All patterns are case-insensitive regexes searched in paths (forward slashes), commands, URLs or queries. docs: files or folders, relative to the project or absolute; a reminder fires at session end if a trigger happened and none of its docs changed afterwards. This example is the Rivals 2 Falcon port's setup. tokens (optional, these are the defaults): context warning past context_warn then every context_step tokens; big_output = tool output size (tokens) that gets a nudge.",
+  "tokens": { "context_warn": 200000, "context_step": 100000, "big_output": 5000 },
   "block": [
     {
       "tools": ["Bash"],

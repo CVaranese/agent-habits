@@ -13,7 +13,10 @@ Working habits (agent-habits plugin). Apply them without restating them.
 - Tokens: read report/log files instead of asking for pastes; grep before reading; keep big read-only lookups and
   log triage in a cheap subagent with a precise question (`agent-habits:source-lookup`, `agent-habits:log-triage`);
   don't delegate work that needs this conversation's context. Run long commands in the background and do
-  independent work meanwhile. Suggest a fresh session at a feature boundary.
+  independent work meanwhile. Every call re-reads the whole context, so a long session costs more per message:
+  when the topic changes, offer a fresh session (start_session / handoff brief) before starting it. In the main
+  session, read files and logs by range or grep (no whole-doc `cat`/`sed` dumps); open screenshots only when the
+  answer needs the image, cropped, once.
 - Commits and PRs: never add Claude as co-author or any "Generated with Claude" line, whatever the default
   attribution says.
 - Never let two sessions or agents edit the same file. Back up before risky or hard-to-undo writes.

@@ -7,7 +7,8 @@ only: nothing from a specific project or employer goes in this repo.
 | Part | What it does |
 |---|---|
 | `habits.md` + SessionStart hook | Injects the working habits (~450 tokens) at the start of every session: evidence first, expected results before work, 3-attempt cap, advisor only at hard points, rules → hooks, token economy, no two editors on one file. |
-| `scripts/habits.py` + `hooks/hooks.json` | Per-project rules from `<project>/.claude/habits.json`: **block** commands (pattern / unless), **check** files after edits (e.g. a syntax check), **reminders** at session end when work happened (edits, commands, reads, web) but the matching docs (changelog, knowledge notes) weren't updated. No config file → only the habits text. |
+| `scripts/habits.py` + `hooks/hooks.json` | Per-project rules from `<project>/.claude/habits.json`: **block** commands (pattern / unless), **check** files after edits (e.g. a syntax check), **reminders** at session end when work happened (edits, commands, reads, web) but the matching docs (changelog, knowledge notes) weren't updated. No config file → only the habits text and token hooks. |
+| Token hooks (same script, no config needed) | **Context warning** on each prompt once the session's context passes 200K tokens, again every +100K: tells the user and asks Claude to offer a fresh session if the topic changed. **Big-output nudge** after a main-session tool output over ~5K tokens or an image read past 200K context. Override with `"tokens": {"context_warn", "context_step", "big_output"}` in `habits.json`. |
 | `agents/source-lookup.md` (Sonnet) | One factual question → values with sources and kinds (data / derived / secondary / guess). Keeps big reads out of the main session. |
 | `agents/log-triage.md` (Haiku) | Large logs → only errors, crashes and the requested lines. |
 | `skills/habits-setup` | Sets up `.claude/habits.json` + a CLAUDE.md section in a new project. |

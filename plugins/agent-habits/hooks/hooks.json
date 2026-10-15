@@ -5,6 +5,11 @@
         "hooks": [{ "type": "command", "command": "python -I \"${CLAUDE_PLUGIN_ROOT}/scripts/habits.py\" session-start" }]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [{ "type": "command", "command": "python -I \"${CLAUDE_PLUGIN_ROOT}/scripts/habits.py\" prompt" }]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash|PowerShell",
