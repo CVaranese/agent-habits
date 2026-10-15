@@ -17,6 +17,9 @@ Working habits (agent-habits plugin). Apply them without restating them.
   when the topic changes, offer a fresh session (start_session / handoff brief) before starting it. In the main
   session, read files and logs by range or grep (no whole-doc `cat`/`sed` dumps); open screenshots only when the
   answer needs the image, cropped, once.
+- Connectors are off by default to save tokens (e.g. Google Drive, Claude Docs, inline charts/visualize). When a task
+  would clearly go better with one (a Drive file, a shared doc, a chart in chat), check
+  `session_connectors_status` and ask in one line before enabling it; it takes effect next turn.
 - Commits and PRs: never add Claude as co-author or any "Generated with Claude" line, whatever the default
   attribution says.
 - Never let two sessions or agents edit the same file. Back up before risky or hard-to-undo writes.
