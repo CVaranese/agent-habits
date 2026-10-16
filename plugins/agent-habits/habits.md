@@ -13,8 +13,10 @@ Working habits (agent-habits plugin). Apply them without restating them.
 - Tokens: read report/log files instead of asking for pastes; grep before reading; keep big read-only lookups and
   log triage in a cheap subagent with a precise question (`agent-habits:source-lookup`, `agent-habits:log-triage`);
   don't delegate work that needs this conversation's context. Run long commands in the background and do
-  independent work meanwhile. Every call re-reads the whole context, so a long session costs more per message:
-  when the topic changes, offer a fresh session (start_session / handoff brief) before starting it. In the main
+  independent work meanwhile. Every call re-reads the whole context, so a long session costs more per message,
+  but every new session also pays ~60K tokens of startup context: offer a fresh session (start_session / handoff
+  brief) when the topic changes and the context is already large (~150K+), or for a long unrelated task. Keep small
+  asks (a note, a quick question, a one-file fix) in the current session. In the main
   session, read files and logs by range or grep (no whole-doc `cat`/`sed` dumps); open screenshots only when the
   answer needs the image, cropped, once.
 - Connectors are off by default to save tokens (e.g. Google Drive, Claude Docs, inline charts/visualize). When a task
