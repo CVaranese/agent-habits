@@ -9,6 +9,7 @@ agent-habits hooks. One script, one subcommand per hook event; reads the hook JS
     post-tool       PostToolUse   runs `check` commands on edited files; notes reminder triggers; flags tool outputs
                                   over `big_output` tokens (they are re-read on every later call)
     stop            Stop          one reminder per triggered rule whose docs weren't edited since
+                                  (once per session for rules with "once_per_session": true)
 
 Token limits work without a habits.json; its optional "tokens" object overrides TOKEN_DEFAULTS.
 
@@ -218,11 +219,15 @@ def stop(data, cfg):
         return  # already reminded once this turn
     due = []
     for r in cfg.get("reminders", []):
-        m = marker(data, r.get("name", "reminder"))
+        name = r.get("name", "reminder")
+        m = marker(data, name)
         if not m.exists():
             continue
-        if docs_mtime(cfg, r.get("docs", [])) <= m.stat().st_mtime:
+        done = marker(data, name + ".reminded")
+        if docs_mtime(cfg, r.get("docs", [])) <= m.stat().st_mtime and not (r.get("once_per_session") and done.exists()):
             due.append(r["message"])
+            if r.get("once_per_session"):
+                done.write_text("1", encoding="utf-8")  # each blocked stop costs a full extra turn
         m.unlink()  # one reminder per batch of triggers
     if due:
         block("\n\n".join(due) + "\n\n(Nothing to record? Answer in one short line.)")
