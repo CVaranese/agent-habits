@@ -1,38 +1,38 @@
 {
-  "_comment": "Copy to <project>/.claude/habits.json and edit. All patterns are case-insensitive regexes searched in paths (forward slashes), commands, URLs or queries. docs: files or folders, relative to the project or absolute; a reminder fires at session end if a trigger happened and none of its docs changed afterwards. This example is the Rivals 2 Falcon port's setup. tokens (optional, these are the defaults): context warning past context_warn then every context_step tokens; big_output = tool output size (tokens) that gets a nudge.",
+  "_comment": "Copy to <project>/.claude/habits.json and edit. All patterns are case-insensitive regexes searched in paths (forward slashes), commands, URLs or queries. docs: files or folders, relative to the project or absolute; a reminder fires at session end if a trigger happened and none of its docs changed afterwards. once_per_session (optional): remind at most once per session, for rules that would otherwise fire every turn. tokens (optional, these are the defaults): context warning past context_warn then every context_step tokens; big_output = tool output size (tokens) that gets a nudge.",
   "tokens": { "context_warn": 200000, "context_step": 100000, "big_output": 5000 },
   "block": [
     {
       "tools": ["Bash"],
-      "pattern": "(^|[\\s'\"=])/Game/",
-      "unless": "MSYS_NO_PATHCONV=1",
-      "message": "Git Bash rewrites /Game/... arguments: prefix the command with MSYS_NO_PATHCONV=1."
+      "pattern": "git\\s+push\\b[^\\n]*\\s(--force|-f)(\\s|$)",
+      "unless": "--force-with-lease",
+      "message": "Don't force-push: use --force-with-lease, or ask the user first."
     }
   ],
   "check": [
     {
-      "path": "/(lua|scripts)/[^/]+\\.lua$",
-      "command": ["C:/Program Files (x86)/Lua/5.1/luac.exe", "-p", "{file}"],
-      "message": "luac -p failed"
+      "path": "\\.py$",
+      "command": ["python", "-m", "py_compile", "{file}"],
+      "message": "Python syntax check failed"
     }
   ],
   "reminders": [
     {
       "name": "changelog",
-      "on_edit": ["/Lua/Captain\\.Lua$"],
-      "on_command": ["run_ue_python\\.py\\b[^\\n]*\\sR2_APPLY=1(\\s|$)"],
-      "docs": ["D:/git_repos/PM_Character_Exporter/docs/CHANGELOG.md"],
-      "message": "This session changed the mod but docs/CHANGELOG.md has no newer edit. Add a player-facing line under Unreleased (and a REVIEW_QUEUE.md entry for anything the user must check), or say why not."
+      "on_edit": ["/src/"],
+      "on_command": ["\\bdeploy\\.py\\b"],
+      "docs": ["CHANGELOG.md"],
+      "message": "This session changed user-facing code (src/ edit or a deploy) but CHANGELOG.md has no newer edit. Add a line under Unreleased, or say why this change doesn't need one."
     },
     {
       "name": "knowledge",
       "once_per_session": true,
-      "on_command": ["run_pie_session|tools[/\\\\]dolphin|move_report\\.py|probe_\\w+\\.py"],
-      "on_read": ["/reference/|doldecomp"],
-      "on_url": ["^https?://([\\w.-]*\\.)?(rivals2\\.com|dragdown\\.wiki|rukaidata\\.com|ssbwiki\\.com|github\\.com/(rukai|doldecomp))"],
-      "on_search": ["rivals|project\\s*\\+|\\bP\\+|brawl|melee|falcon"],
-      "docs": ["D:/git_repos/PM_Character_Exporter/docs/knowledge", "D:/git_repos/PM_Character_Exporter/docs/characters"],
-      "message": "This session did research but docs/knowledge/ has no newer edit. Record what was learned (Status + Evidence; tested / researched / guess), or say why nothing new was learned."
+      "on_command": ["\\bbenchmark\\.py\\b|\\bprobe_\\w+\\.py\\b"],
+      "on_read": ["(^|/)reference/|(^|/)vendor/"],
+      "on_url": ["^https?://([\\w.-]*\\.)?(docs\\.python\\.org|developer\\.mozilla\\.org)"],
+      "on_search": ["\\bapi\\b|\\bspec\\b|benchmark"],
+      "docs": ["docs/knowledge"],
+      "message": "This session did research (probes, reference reads, docs lookups) but docs/knowledge/ has no newer edit. Record what was learned (Status + Evidence; tested / researched / guess), or say why nothing new was learned."
     }
   ]
 }

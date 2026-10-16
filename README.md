@@ -19,7 +19,7 @@ Requires `python` on PATH (3.8+). If Python is missing, the hooks fail and nothi
 ## Install
 From a clone or a local folder:
 
-    claude plugin marketplace add D:/git_repos/agent-habits
+    claude plugin marketplace add <path-to-clone>/agent-habits
     claude plugin install agent-habits@agent-habits
 
 From GitHub (once pushed; private repos use your git credentials):
