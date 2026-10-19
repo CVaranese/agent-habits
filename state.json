@@ -1,7 +1,7 @@
 {
  "_comment": "Bookkeeping for the weekly habits-update routine. Only the routine writes this branch.",
- "last_checked": "2026-10-14",
- "last_seen_changelog_version": "2.1.300",
+ "last_checked": "2026-10-19",
+ "last_seen_changelog_version": "2.1.303",
  "docs_pages": [
   "https://code.claude.com/docs/en/accessibility.md",
   "https://code.claude.com/docs/en/admin-setup.md",
@@ -68,6 +68,12 @@
   "https://code.claude.com/docs/en/claude-tag.md",
   "https://code.claude.com/docs/en/cli-reference.md",
   "https://code.claude.com/docs/en/cloud-environments.md",
+  "https://code.claude.com/docs/en/code-review-costs.md",
+  "https://code.claude.com/docs/en/code-review-customize.md",
+  "https://code.claude.com/docs/en/code-review-local.md",
+  "https://code.claude.com/docs/en/code-review-pull-requests.md",
+  "https://code.claude.com/docs/en/code-review-setup.md",
+  "https://code.claude.com/docs/en/code-review-troubleshooting.md",
   "https://code.claude.com/docs/en/code-review.md",
   "https://code.claude.com/docs/en/commands.md",
   "https://code.claude.com/docs/en/common-workflows.md",
@@ -259,8 +265,10 @@
   "https://www.anthropic.com/engineering/redesigning-source-control",
   "https://www.anthropic.com/engineering/swe-bench-sonnet",
   "https://www.anthropic.com/engineering/writing-tools-for-agents",
+  "https://www.anthropic.com/news/2026-us-midterms",
   "https://www.anthropic.com/news/2026-usage-policy-update",
   "https://www.anthropic.com/news/accenture-embedded-evaluation",
+  "https://www.anthropic.com/news/an-update-on-independent-evaluators",
   "https://www.anthropic.com/news/announcing-our-updated-responsible-scaling-policy",
   "https://www.anthropic.com/news/anthropic-cyber-mission",
   "https://www.anthropic.com/news/barclays-scales-claude",
@@ -269,6 +277,7 @@
   "https://www.anthropic.com/news/cyber-verification-program",
   "https://www.anthropic.com/news/genesis-mission-commitment",
   "https://www.anthropic.com/news/life-sciences-verification-program",
+  "https://www.anthropic.com/news/public-benefit-fund",
   "https://www.anthropic.com/news/singapore-office-opening"
  ]
 }

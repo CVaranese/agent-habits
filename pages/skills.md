@@ -666,10 +666,6 @@ When you run `/fix-issue 123`, Claude receives "Fix GitHub issue 123 following o
 
 If you invoke a skill with arguments but no placeholder in the skill's content receives one, Claude Code appends `ARGUMENTS: <your input>` to the end of the skill content so Claude still sees what you typed. A placeholder is `$ARGUMENTS`, an indexed form such as `$1`, or a named argument. An indexed placeholder with no argument at its position stays as literal text and doesn't count as receiving one. A named placeholder counts even when its position has no argument, because it expands to an empty string.
 
-You can also stack several skills at the start of one message. Typing `/write-tests /fix-issue 123` loads both skills and passes the trailing text `123` as `$ARGUMENTS` to each of them.
-
-Claude Code expands the first skill plus up to five more stacked after it. Expansion stops at the first token that isn't an inline user-invocable skill, so a skill that runs as a [forked subagent](#run-skills-in-a-subagent), such as [`/code-review`](/docs/en/code-review#review-a-diff-locally), or one whose arguments may themselves start with a slash command, such as `/loop`, also ends the run there. That token and everything after it become the argument text for every expanded skill. `/code-review` runs as a forked subagent from v2.1.218; on earlier versions it ran inline and stacked.
-
 To access individual arguments by position, use `$ARGUMENTS[N]` or the shorter `$N`:
 
 ```yaml theme={null}
@@ -693,6 +689,12 @@ description: Migrate a component from one language to another
 Migrate the $0 component from $1 to $2.
 Preserve all existing behavior and tests.
 ```
+
+#### Stack several skills in one message
+
+When you type at the Claude Code prompt in your terminal, you can stack several skills at the start of one message. Through the Agent SDK or `claude -p`, Claude Code loads only the first skill, with the rest of the line as its arguments. At the terminal prompt, typing `/write-tests /fix-issue 123` loads both skills and passes the trailing text `123` as `$ARGUMENTS` to each of them.
+
+Claude Code expands the first skill plus up to five more stacked after it. Expansion stops at the first token that isn't an inline user-invocable skill. If you stack a skill that runs as a [forked subagent](#run-skills-in-a-subagent), such as [`/code-review`](/docs/en/code-review-local), or one whose arguments may start with another command, such as `/loop`, expansion ends there. That token and everything after it become the argument text for every expanded skill.
 
 ## Advanced patterns
 
@@ -772,6 +774,10 @@ Which commands get the carveout depends on the shell:
 
 With the default `bash` shell, append `|| true` to any other command you expect to exit non-zero. A check script that exits 1 when it finds problems is one example.
 
+#### Control characters in injected commands
+
+`No shell command in <name> was run` means one of the file's `!` commands contains a raw control character other than tab or newline, so none of them runs. See [how to find and remove the character](/docs/en/errors#no-shell-command-was-run).
+
 #### Permission checks on injected commands
 
 Injected commands never prompt for permission while the skill renders. Claude Code checks each one against your [permission rules](/docs/en/permissions) first. A command a deny rule matches aborts the invocation with `Shell command permission check failed for pattern "..."`.
@@ -801,7 +807,7 @@ When an agent in a [dynamic workflow](/docs/en/workflows) invokes a forked skill
 
 A backgrounded fork also runs with the [narrower tool set that applies to background subagents](/docs/en/sub-agents#run-subagents-in-foreground-or-background): the skill's subagent is a regular agent type, so the exemption for subagents that fork the conversation doesn't cover it. If your skill's steps depend on a tool outside that set, set `background: false` to keep the full tool set.
 
-A forked skill that runs in the background applies its edits outside your session's [checkpoints](/docs/en/checkpointing), so `/rewind` doesn't undo them; use git to revert them.
+A forked skill that runs in the background applies its edits outside your session's [checkpoints](/docs/en/checkpointing#subagent-edits-not-restored). After one, `/rewind` restores only the files Claude had already edited in your conversation. The skill's edits to other files stay, so use git to revert them.
 
 <Warning>
   `context: fork` only makes sense for skills with explicit instructions. If your skill contains guidelines like "use these API conventions" without a task, the subagent receives the guidelines but no actionable prompt, and returns without meaningful output.
@@ -962,7 +968,7 @@ The [`skill-creator` plugin](https://github.com/anthropics/claude-plugins-offici
 If the install fails, match the message Claude Code reports:
 
 * `Marketplace "claude-plugins-official" not found`: add the marketplace with `/plugin marketplace add anthropics/claude-plugins-official`, then retry the install.
-* The plugin is [not found in the marketplace](/docs/en/plugins/install#install-a-plugin): check the plugin name.
+* `Plugin "<name>" not found in marketplace "claude-plugins-official"`: your local copy of the marketplace catalog may be out of date. Refresh it with `/plugin marketplace update claude-plugins-official`, then retry the install. If the retry prints the same message, see [Plugin not found in marketplace](/docs/en/plugins/troubleshooting#plugin-not-found-in-marketplace).
 
 If the install summary reports `Run /reload-plugins to apply.`, Claude Code then runs that reload for you. If the reload warns that your next message would re-read the conversation, run `/reload-plugins --force` to make the plugin's skills available in the current session. Then ask Claude to evaluate an existing skill, for example `evaluate my summarize-changes skill with skill-creator`. The plugin walks you through writing test cases and runs the loop:
 
