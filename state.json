@@ -1,7 +1,7 @@
 {
  "_comment": "Bookkeeping for the weekly habits-update routine. Only the routine writes this branch.",
- "last_checked": "2026-10-22",
- "last_seen_changelog_version": "2.1.308",
+ "last_checked": "2026-10-26",
+ "last_seen_changelog_version": "2.1.310",
  "docs_pages": [
   "https://code.claude.com/docs/en/accessibility.md",
   "https://code.claude.com/docs/en/admin-setup.md",
@@ -240,6 +240,7 @@
   "https://claude.com/blog/getting-the-most-out-of-opus-5-5",
   "https://claude.com/blog/spending-your-effort",
   "https://claude.com/blog/what-a-task-costs-on-opus-5-5",
+  "https://claude.dev/blog/solving-code-review-at-anthropic",
   "https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues",
   "https://www.anthropic.com/engineering/advanced-tool-use",
   "https://www.anthropic.com/engineering/april-23-postmortem",
@@ -286,10 +287,12 @@
   "https://www.anthropic.com/news/improving-alignment-security-efforts",
   "https://www.anthropic.com/news/life-sciences-verification-program",
   "https://www.anthropic.com/news/model-hardware-standard-research-preview",
+  "https://www.anthropic.com/news/open-call-guest-investigators-life-sciences",
   "https://www.anthropic.com/news/partnerships",
   "https://www.anthropic.com/news/policy",
   "https://www.anthropic.com/news/product",
   "https://www.anthropic.com/news/public-benefit-fund",
+  "https://www.anthropic.com/news/s1-sec",
   "https://www.anthropic.com/news/safeguards",
   "https://www.anthropic.com/news/security",
   "https://www.anthropic.com/news/singapore-office-opening"
