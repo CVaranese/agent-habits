@@ -177,6 +177,13 @@ def main():
         expect("sed -i on knowledge blocked", sh("sed -i 's/a/b/' docs/knowledge/ENGINE.md"), 2)
         expect("cp into knowledge blocked", sh("cp notes.md docs/knowledge/"), 2)
         expect("ps Move-Item from knowledge blocked", sh("Move-Item docs/knowledge/ENGINE.md old.md", "PowerShell"), 2)
+        expect("env-prefixed sed -i on knowledge blocked", sh("LC_ALL=C sed -i 's/a/b/' docs/knowledge/ENGINE.md"), 2)
+        expect("git rm of knowledge blocked", sh("git rm -q docs/knowledge/ENGINE.md"), 2)
+        expect("ps Set-Content into knowledge blocked",
+               sh("Set-Content -Encoding utf8 docs/knowledge/ENGINE.md $x", "PowerShell"), 2)
+        expect("ps Set-Content of a knowledge path string into temp passes",
+               sh("Set-Content $env:TEMP/log.txt 'docs/knowledge/ENGINE.md'", "PowerShell"), 0)
+        expect("git checkout of other paths passes", sh("git checkout -- src/ok.py"), 0)
         expect("cp out of knowledge passes", sh("cp docs/knowledge/ENGINE.md /tmp/x.md"), 0)
         expect("reading knowledge passes", sh("grep -n fact docs/knowledge/ENGINE.md > /tmp/hits.txt"), 0)
         expect("git add knowledge passes", sh("git add docs/knowledge/ENGINE.md && git commit -m 'kb: x'"), 0)

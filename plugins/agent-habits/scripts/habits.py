@@ -63,8 +63,9 @@ PS_CMDLET_ARGS = re.compile(r"\b(?:Set-Content|Add-Content|Out-File)\b([^|;\n]*)
 # --- knowledge guard: only the librarian agent writes the paths in `knowledge_paths` ---------------------------------
 LIBRARIANS = {"agent-habits:librarian", "librarian"}   # plugin agent / a copy in .claude/agents
 # shell commands that change the files they name: every path argument counts, except cp / Copy-Item (destination only)
-SHELL_CHANGERS = re.compile(r"^\s*(?:(sed|perl)\b(?=[^\n]*\s-i)|(mv|rm|Remove-Item|Move-Item|Set-Content|Add-Content"
-                            r"|Out-File|Clear-Content)\b|(cp|Copy-Item)\b)", re.I)
+SHELL_CHANGERS = re.compile(r"^\s*(?:\w+=\S*\s+)*(?:sudo\s+)?(?:(sed|perl)\b(?=[^\n]*\s-i)"
+                            r"|(mv|rm|git\s+(?:mv|rm|checkout|restore)|Remove-Item|Move-Item|Clear-Content)\b"
+                            r"|(cp|Copy-Item)\b)", re.I)
 PS_FLAG = re.compile(r"-\w+(\s+(?!-)(?:" + _Q + r"|\S+))?")  # `-Encoding utf8`, `-Force`
 # targets that are not source files: temp dirs, the scratchpad, devices, stdout
 TEMP_TARGET = re.compile(r"(^|[/\\\"'=:])(tmp|temp|scratchpad?)([/\\\"']|$)|\$\{?(TMP|TEMP|TMPDIR|SCRATCH)|%TE?MP%"
@@ -215,6 +216,9 @@ def knowledge_targets(data, tool, inp):
     elif tool in SHELL_TOOLS:
         cmd = without_bodies(tool, inp.get("command", ""))
         found = [m.group(1) for m in REDIRECT.finditer(cmd)] + [m.group(1) for m in TEE.finditer(cmd)]
+        found += ["".join(m.groups("")) for m in PS_TARGET.finditer(cmd)]
+        for m in PS_CMDLET_ARGS.finditer(cmd):   # Set-Content's path, not the value it writes
+            found += re.findall(_Q + r"|\S+", PS_FLAG.sub(" ", m.group(1)))[:1]
         for seg in re.split(r"[|;&\n]+", cmd):
             m = SHELL_CHANGERS.match(seg)
             if not m:
