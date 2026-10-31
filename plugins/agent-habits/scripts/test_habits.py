@@ -200,14 +200,16 @@ def main():
         (kbp / "docs" / "knowledge").mkdir(parents=True)
         (kbp / "src").mkdir()
         (kbp / "src" / "engine_moved.py").write_text("def wave_land():\n    pass\n")
+        (kbp / "src" / "café.py").write_text("x = 1\n")
         (kbp / ".claude").mkdir()
         (kbp / ".claude" / "habits.json").write_text(json.dumps({"knowledge_audit": {
             "files": ["docs/knowledge"], "code_roots": ["."], "report": "docs/knowledge/AUDIT.md"}}))
         (kbp / "docs" / "knowledge" / "A.md").write_text(
             "# Engine\n<a id=\"e-fall\"></a>\n### Fall speed is capped\nSee [B](B.md#nowhere) and [gone](C.md).\n"
-            "- **Evidence:** `src/old/engine_moved.py`, `src/never_was.py`, commit `abc1234`\n"
+            "- **Evidence:** `src/old/engine_moved.py`, `src/never_was.py`, commit `abc1234`, `lib/café.py`\n"
             "- **Used in:** `wave_land`, `noSuchFunction`\n"
-            "  - nested:\n    - see [nested](NESTED.md)\n\n    [in an indented code block](CODE.md)\n")
+            "  - nested:\n    - see [nested](NESTED.md)\n\n    [in an indented code block](CODE.md)\n",
+            encoding="utf-8")
         (kbp / "docs" / "knowledge" / "B.md").write_text("# B\n<a id=\"e-fall\"></a>\n### Fall speed is capped\n")
         (kbp / "docs" / "knowledge" / "AUDIT.md").write_text("[x](missing.md)\n")
         subprocess.run(["git", "init", "-q", str(kbp)], check=True)
@@ -219,7 +221,8 @@ def main():
         except ValueError:
             got = {"error": r.stdout + r.stderr}
         want = {"broken link": ["C.md", "NESTED.md"], "missing anchor": ["B.md#nowhere"],
-                "moved path?": ["src/old/engine_moved.py -> now kbproj/src/engine_moved.py"],
+                "moved path?": ["lib/café.py -> now kbproj/src/café.py",
+                                "src/old/engine_moved.py -> now kbproj/src/engine_moved.py"],
                 "missing path": ["src/never_was.py"], "unknown commit": ["abc1234"],
                 "Used in name not in code": ["noSuchFunction"],
                 "duplicate title": ["'fall speed is capped' in A.md, B.md"], "duplicate anchor": ["e-fall x2"]}

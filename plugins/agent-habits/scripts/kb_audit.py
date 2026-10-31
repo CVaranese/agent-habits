@@ -74,8 +74,9 @@ def tracked_files(roots):
     """Every git-tracked file under the code roots, as forward-slash paths relative to their root."""
     out = []
     for root in roots:
-        r = subprocess.run(["git", "-C", str(root), "ls-files"], capture_output=True, text=True, encoding="utf-8")
-        out += [(root, p) for p in r.stdout.splitlines()]
+        r = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, text=True,
+                           encoding="utf-8")   # -z: non-ASCII names unquoted
+        out += [(root, p) for p in r.stdout.split("\0") if p]
     return out
 
 
