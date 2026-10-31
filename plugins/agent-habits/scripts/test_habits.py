@@ -88,6 +88,9 @@ def main():
         big = {**t, "tool_name": "Bash", "tool_input": {"command": "cat big"}, "tool_response": {"stdout": "x" * 40_000}}
         expect("big output nudged", "additionalContext" in run("post-tool", big, proj)[1], True)
         expect("subagent big output quiet", run("post-tool", {**big, "agent_id": "a1"}, proj)[1].strip(), "")
+        edit = {**t, "tool_name": "Edit", "tool_input": {"file_path": str(proj / "docs" / "CHANGELOG.md")},
+                "tool_response": {"originalFile": "x" * 40_000}}
+        expect("edit of a big file quiet", run("post-tool", edit, proj)[1].strip(), "")
         small = {**big, "tool_response": {"stdout": "ok"}}
         expect("small output quiet", run("post-tool", small, proj)[1].strip(), "")
         img = {**t, "tool_name": "Read", "tool_input": {"file_path": "C:/x/shot.png"}, "tool_response": {}}

@@ -320,6 +320,8 @@ def big_output(data, cfg):
     if data.get("agent_id"):
         return  # inside a subagent: big reads are what it is for
     tool, inp = data.get("tool_name", ""), data.get("tool_input", {})
+    if tool in EDIT_TOOLS:
+        return  # the hook's tool_response carries the whole file; the model only sees a one-line result
     lim = token_limits(cfg)
     path = posix(inp.get("file_path") or "")
     if tool == "Read" and IMAGE_EXT.search(path):
