@@ -123,11 +123,16 @@ def audit(project):
 
     for f in files:
         text = f.read_text(encoding="utf-8", errors="replace")
-        in_code = False
+        in_code = indented = False
+        prev = ""
         for n, line in enumerate(text.splitlines(), 1):
             if line.lstrip().startswith("```"):
                 in_code = not in_code
-            if in_code or line.startswith("    "):
+            # indented code block: 4+ spaces after a blank line (or more of it); nested list items aren't code
+            indented = (line.startswith("    ") and (not prev.strip() or indented)
+                        and not re.match(r"\s*([-*+]|\d+\.)\s", line))
+            prev = line
+            if in_code or indented:
                 continue
             where = (f, n)
             for target in LINK.findall(line):

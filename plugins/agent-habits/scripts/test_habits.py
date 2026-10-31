@@ -206,7 +206,8 @@ def main():
         (kbp / "docs" / "knowledge" / "A.md").write_text(
             "# Engine\n<a id=\"e-fall\"></a>\n### Fall speed is capped\nSee [B](B.md#nowhere) and [gone](C.md).\n"
             "- **Evidence:** `src/old/engine_moved.py`, `src/never_was.py`, commit `abc1234`\n"
-            "- **Used in:** `wave_land`, `noSuchFunction`\n")
+            "- **Used in:** `wave_land`, `noSuchFunction`\n"
+            "  - nested:\n    - see [nested](NESTED.md)\n\n    [in an indented code block](CODE.md)\n")
         (kbp / "docs" / "knowledge" / "B.md").write_text("# B\n<a id=\"e-fall\"></a>\n### Fall speed is capped\n")
         (kbp / "docs" / "knowledge" / "AUDIT.md").write_text("[x](missing.md)\n")
         subprocess.run(["git", "init", "-q", str(kbp)], check=True)
@@ -217,7 +218,7 @@ def main():
             got = {k: sorted(d["detail"] for d in v) for k, v in json.loads(r.stdout).items()}
         except ValueError:
             got = {"error": r.stdout + r.stderr}
-        want = {"broken link": ["C.md"], "missing anchor": ["B.md#nowhere"],
+        want = {"broken link": ["C.md", "NESTED.md"], "missing anchor": ["B.md#nowhere"],
                 "moved path?": ["src/old/engine_moved.py -> now kbproj/src/engine_moved.py"],
                 "missing path": ["src/never_was.py"], "unknown commit": ["abc1234"],
                 "Used in name not in code": ["noSuchFunction"],
