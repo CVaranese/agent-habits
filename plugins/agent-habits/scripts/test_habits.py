@@ -207,7 +207,7 @@ def main():
         (kbp / "docs" / "knowledge" / "A.md").write_text(
             "# Engine\n<a id=\"e-fall\"></a>\n### Fall speed is capped\nSee [B](B.md#nowhere) and [gone](C.md).\n"
             "- **Evidence:** `src/old/engine_moved.py`, `src/never_was.py`, commit `abc1234`, `lib/café.py`\n"
-            "- **Used in:** `wave_land`, `noSuchFunction`\n"
+            "- **Used in:** `wave_land`, `noSuchFunction`, `Engine:wave_land`\n"
             "  - nested:\n    - see [nested](NESTED.md)\n\n    [in an indented code block](CODE.md)\n",
             encoding="utf-8")
         (kbp / "docs" / "knowledge" / "B.md").write_text("# B\n<a id=\"e-fall\"></a>\n### Fall speed is capped\n"

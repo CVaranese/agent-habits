@@ -72,28 +72,30 @@ def anchors(path, cache={}):
 
 
 def tracked_files(roots):
-    """Every git-tracked file under the code roots, as forward-slash paths relative to their root."""
-    out = []
+    """Git-tracked files under the code roots: ({file name: [(root, relative path)]}, top-level names)."""
+    by_name, tops = defaultdict(list), {root.name for root in roots}
     for root in roots:
         r = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, text=True,
                            encoding="utf-8")   # -z: non-ASCII names unquoted
-        out += [(root, p) for p in r.stdout.split("\0") if p]
-    return out
+        for p in r.stdout.split("\0"):
+            if p:
+                by_name[p.rsplit("/", 1)[-1]].append((root, p))
+                tops.add(p.split("/", 1)[0])
+    return by_name, tops
 
 
-def path_verdict(tok, bases, tracked, roots):
+def path_verdict(tok, bases, tracked):
     """("", "") = exists; (check, note) = a finding; None = names something outside the code roots (not checked)."""
     if any((b / tok).exists() for b in bases):
         return "", ""
-    if any(p == tok or p.endswith("/" + tok) for _, p in tracked):
+    by_name, tops = tracked
+    same_name = by_name.get(tok.rsplit("/", 1)[-1], [])
+    if any(p == tok or p.endswith("/" + tok) for _, p in same_name):
         return "", ""   # cited relative to a deeper folder
-    name = tok.rsplit("/", 1)[-1]
-    moved = sorted({f"{root.name}/{p}" for root, p in tracked if p.rsplit("/", 1)[-1] == name})
+    moved = sorted({f"{root.name}/{p}" for root, p in same_name})
     if moved:
         return "moved path?", f" -> now {', '.join(moved[:3])}" + (" ..." if len(moved) > 3 else "")
-    first = tok.split("/", 1)[0]
-    tops = {root.name for root in roots} | {p.split("/", 1)[0] for _, p in tracked if "/" in p}
-    return ("missing path", "") if first in tops else None
+    return ("missing path", "") if tok.split("/", 1)[0] in tops else None
 
 
 def git_has(repo, sha):
@@ -120,7 +122,7 @@ def audit(project):
     found = defaultdict(list)   # check -> [(file, line, detail)]
     titles, ids = defaultdict(list), defaultdict(list)
     skipped = defaultdict(int)
-    hash_ok = {}
+    hash_ok, code_ok, memory_names = {}, {}, {}
     tracked = tracked_files(roots)
 
     for f in files:
@@ -149,8 +151,7 @@ def audit(project):
             for tok in TICKED.findall(line):
                 tok = re.sub(r":[\d,-]+$", "", tok.strip()).replace("\\", "/")
                 if PATHLIKE.match(tok) and "/" in tok:
-                    verdict = path_verdict(tok, [*f.parents, project, *roots, *(r.parent for r in roots)],
-                                           tracked, roots)
+                    verdict = path_verdict(tok, [*f.parents, project, *roots, *(r.parent for r in roots)], tracked)
                     if verdict is None:
                         skipped["paths outside the code roots"] += 1
                     elif verdict[0]:
@@ -160,8 +161,13 @@ def audit(project):
                 for tok in TICKED.findall(m.group(1)):
                     name = tok.strip().rstrip("()")
                     is_file = re.search(r"\.(py|lua|md|json|csv|txt|cs)$", name, re.I)
-                    if IDENT.match(tok.strip()) and not is_file and len(name) > 3:
-                        if not code_has(roots, name):
+                    if not IDENT.match(tok.strip()) or is_file:
+                        continue
+                    last = re.split(r"[.:]", name)[-1]   # `Captain:Method`, `TABLE.field`: the member is the code
+                    if len(last) > 3:
+                        if last not in code_ok:
+                            code_ok[last] = code_has(roots, last)
+                        if not code_ok[last]:
                             found["Used in name not in code"].append((*where, name))
             for sha in HASH.findall(line):
                 if not (re.search(r"[a-f]", sha) and re.search(r"\d", sha)) or GC_ADDRESS.match(sha):
@@ -175,9 +181,11 @@ def audit(project):
         for a in ANCHOR_TAG.findall(text):
             ids[a].append(f)
         if f.parent.name == "memory":
-            names = {re.search(r"^name:\s*(\S+)", p.read_text(encoding="utf-8", errors="replace"), re.M)
-                     for p in f.parent.glob("*.md")}
-            names = {m.group(1) for m in names if m}
+            if f.parent not in memory_names:
+                found_names = (re.search(r"^name:\s*(\S+)", p.read_text(encoding="utf-8", errors="replace"), re.M)
+                               for p in f.parent.glob("*.md"))
+                memory_names[f.parent] = {m.group(1) for m in found_names if m}
+            names = memory_names[f.parent]
             for n, line in enumerate(text.splitlines(), 1):
                 for w in WIKILINK.findall(line):
                     if w.strip() not in names:
