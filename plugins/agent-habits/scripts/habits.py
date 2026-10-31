@@ -5,13 +5,19 @@ agent-habits hooks. One script, one subcommand per hook event; reads the hook JS
     session-start   SessionStart  prints habits.md (+ which project reminders are active) into the context
     prompt          UserPromptSubmit  context-size warning (to the user and Claude) at each `context_step` past
                                   `context_warn` tokens: every call re-reads the whole context
-    pre-tool        PreToolUse    blocks commands matching the project's `block` rules
-    post-tool       PostToolUse   runs `check` commands on edited files; notes reminder triggers; flags tool outputs
-                                  over `big_output` tokens (they are re-read on every later call)
+    pre-tool        PreToolUse    blocks commands matching the project's `block` rules; built-in guard: shell file
+                                  writes through heredocs / multi-line echo / Set-Content into non-temp paths are
+                                  blocked (use Write/Edit); `experiments` reminder (once per session) when a
+                                  long-run command starts and no plan file was written this session
+    post-tool       PostToolUse   runs `check` commands on edited files; built-in guard: control bytes (NUL, form
+                                  feed...), invalid UTF-8 and mixed line endings in the edited file are reported;
+                                  notes reminder triggers; flags tool outputs over `big_output` tokens (they are
+                                  re-read on every later call)
     stop            Stop          one reminder per triggered rule whose docs weren't edited since
                                   (once per session for rules with "once_per_session": true)
 
-Token limits work without a habits.json; its optional "tokens" object overrides TOKEN_DEFAULTS.
+Token limits and the shell/file guards work without a habits.json; its optional "tokens" / "guards" objects override
+TOKEN_DEFAULTS / GUARD_DEFAULTS.
 
 Per-project rules: <project>/.claude/habits.json (schema: examples/habits.example.json, README.md). No file = only
 the session-start habits. Exit 2 + stderr = blocked / sent back to Claude. Any internal error exits 0: a broken
@@ -33,7 +39,30 @@ EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 SHELL_TOOLS = {"Bash", "PowerShell"}
 READ_TOOLS = {"Read", "Grep", "Glob"}
 TOKEN_DEFAULTS = {"context_warn": 200_000, "context_step": 100_000, "big_output": 5_000}
+GUARD_DEFAULTS = {"shell_writes": True, "control_chars": True}
 IMAGE_EXT = re.compile(r"\.(png|jpe?g|gif|webp|bmp)$", re.I)
+BINARY_EXT = re.compile(r"\.(png|jpe?g|gif|webp|bmp|ico|pdf|zip|gz|7z|exe|dll|so|pyc|pac|brsar|dat|bin|wav|mp3|ogg"
+                        r"|ttf|otf|woff2?|uasset|umap|fbx|sav|raw)$", re.I)
+
+# --- shell write guard: heredoc / multi-line echo / PowerShell here-string that lands in a file ---------------------
+_Q = r'"[^"]*"|\'[^\']*\''  # a quoted shell word
+HEREDOC = re.compile(r"<<-?\s*(?:" + _Q + r"|[A-Za-z_][\w-]*)")
+PS_HERESTRING = re.compile(r"@[\"']\s*\r?\n")
+# `> file`, `>> file`, `&> file`; not `2>&1`, `>&2`, `<<`
+REDIRECT = re.compile(r"(?:(?<![<>&\d])>{1,2}|&>)(?!&)\s*(" + _Q + r"|[^\s|;&<>]+)")
+TEE = re.compile(r"\btee\s+(?:-\w+\s+)*(" + _Q + r"|[^\s|;&<>]+)")
+ECHO_WRITE = re.compile(r"\b(?:echo|printf)\s+((?:" + _Q + r"|[^\s>;|&])+)\s*>{1,2}(?!&)\s*(" + _Q + r"|[^\s|;&<>]+)",
+                        re.S)
+PS_WRITER = re.compile(r"\b(Set-Content|Add-Content|Out-File)\b", re.I)
+PS_TARGET = re.compile(r"-(?:Path|LiteralPath|FilePath)\s+(" + _Q + r"|\S+)|WriteAll(?:Text|Lines|Bytes)\(\s*(" + _Q + r")",
+                       re.I)
+PS_CMDLET_ARGS = re.compile(r"\b(?:Set-Content|Add-Content|Out-File)\b([^|;\n]*)", re.I)
+PS_FLAG = re.compile(r"-\w+(\s+(?!-)(?:" + _Q + r"|\S+))?")  # `-Encoding utf8`, `-Force`
+# targets that are not source files: temp dirs, the scratchpad, devices, stdout
+TEMP_TARGET = re.compile(r"(^|[/\\\"'=:])(tmp|temp|scratchpad?)([/\\\"']|$)|\$\{?(TMP|TEMP|TMPDIR|SCRATCH)|%TE?MP%"
+                         r"|AppData[/\\]Local[/\\]Temp|^[\"']?(-|/dev/\w+|NUL)[\"']?$", re.I)
+CONTROL_BYTES = frozenset(set(range(0, 9)) | {0x0B, 0x0C} | set(range(0x0E, 0x20)) | {0x7F})
+CONTROL_NAMES = {0: "NUL", 0x0B: "VT", 0x0C: "form feed", 0x1B: "ESC", 0x7F: "DEL"}
 
 
 def project_dir(data):
@@ -90,6 +119,86 @@ def docs_mtime(cfg, docs):
 
 def token_limits(cfg):
     return {**TOKEN_DEFAULTS, **((cfg or {}).get("tokens") or {})}
+
+
+def guard_flags(cfg):
+    return {**GUARD_DEFAULTS, **((cfg or {}).get("guards") or {})}
+
+
+def source_targets(targets):
+    return [t for t in targets if t and not TEMP_TARGET.search(t.strip())]
+
+
+def shell_write_target(tool, cmd):
+    """The non-temp file a shell command writes multi-line text into (heredoc, multi-line echo/printf, PowerShell
+    here-string / Set-Content), or None. A heredoc that only feeds a program (`git commit -F - <<EOF`) is fine."""
+    if not cmd:
+        return None
+    if tool == "PowerShell":
+        if not (PS_HERESTRING.search(cmd) or PS_WRITER.search(cmd)):
+            return None
+        found = ["".join(m.groups("")) for m in PS_TARGET.finditer(cmd)]
+        for m in PS_CMDLET_ARGS.finditer(cmd):  # positional path: the words left after `-Flag value` pairs
+            found += re.findall(_Q + r"|\S+", PS_FLAG.sub(" ", m.group(1)))
+        found += [m.group(1) for m in REDIRECT.finditer(cmd)]
+        if not found:
+            return "<unknown target>" if PS_WRITER.search(cmd) else None
+        hits = source_targets(found)
+        return hits[0] if hits else None
+    if HEREDOC.search(cmd):
+        hits = source_targets([m.group(1) for m in REDIRECT.finditer(cmd)] + [m.group(1) for m in TEE.finditer(cmd)])
+        if hits:
+            return hits[0]
+    for m in ECHO_WRITE.finditer(cmd):
+        arg, target = m.group(1), m.group(2)
+        if ("\n" in arg or arg.count("\\n") >= 2) and source_targets([target]):
+            return target
+    return None
+
+
+def control_char_report(path):
+    """Problems in a just-edited text file: control bytes, invalid UTF-8, mixed line endings. None if clean."""
+    p = Path(path)
+    if not p.is_file() or BINARY_EXT.search(path) or p.stat().st_size > 8_000_000:
+        return None
+    raw = p.read_bytes()
+    nl = b"\n"
+
+    def line(i):
+        return raw.count(nl, 0, i) + 1
+
+    problems = []
+    hits = [(i, b) for i, b in enumerate(raw) if b in CONTROL_BYTES]
+    if hits:
+        shown = ", ".join("%s at line %d" % (CONTROL_NAMES.get(b, "0x%02X" % b), line(i)) for i, b in hits[:5])
+        problems.append("%d control byte(s): %s" % (len(hits), shown))
+    try:
+        raw.decode("utf-8")
+    except UnicodeDecodeError as e:
+        problems.append("not valid UTF-8 (byte 0x%02X at line %d; a cp1252 write?)" % (raw[e.start], line(e.start)))
+    crlf = raw.count(b"\r\n")
+    lf = raw.count(nl) - crlf
+    if crlf and lf:
+        problems.append(f"mixed line endings ({crlf} CRLF, {lf} LF): the edit changed the file's ending style")
+    return "; ".join(problems) if problems else None
+
+
+def experiments_reminder(data, cfg, tool, cmd):
+    """Once per session: a long-run command starts (cfg["experiments"]["on_command"]) with no plan file edited
+    this session (cfg["experiments"]["plan"] path patterns, noted by post_tool)."""
+    ex = (cfg or {}).get("experiments")
+    if not ex or tool not in SHELL_TOOLS or not any_match(ex.get("on_command"), cmd):
+        return
+    if marker(data, "experiment.plan").exists() or marker(data, "experiment.reminded").exists():
+        return
+    MARKERS.mkdir(parents=True, exist_ok=True)
+    marker(data, "experiment.reminded").write_text(cmd[:300], encoding="utf-8")
+    msg = ex.get("message") or ("This command starts a long scripted experiment and no experiment plan was written "
+                                "this session. The experiment-plan skill (agent-habits) writes one: goal, assumptions "
+                                "tagged verified / needs-user / unknown, prerequisites checked on disk, the cheapest "
+                                "disproving run, run budget; anything tagged needs-user stops for the user first.")
+    emit("PreToolUse", user="Long run started without an experiment plan (reminder sent to Claude, once per session).",
+         claude=msg)
 
 
 def context_tokens(data):
@@ -175,17 +284,36 @@ def session_start(data):
 def pre_tool(data, cfg):
     tool, inp = data.get("tool_name", ""), data.get("tool_input", {})
     cmd = inp.get("command", "")
-    for rule in cfg.get("block", []):
+    if guard_flags(cfg)["shell_writes"] and tool in SHELL_TOOLS:
+        target = shell_write_target(tool, cmd)
+        if target:
+            block(f"Shell write into {target} blocked: multi-line text through heredocs / echo / Set-Content has "
+                  "damaged files before (NUL bytes, form feeds, CRLF/LF mixes, cp1252). Use the Write or Edit tool "
+                  "for files; a heredoc that only feeds a program (git commit -F -, python -) still works. "
+                  "Temp paths (tmp, temp, the scratchpad) are exempt.")
+    for rule in (cfg or {}).get("block", []):
         if tool not in rule.get("tools", ["Bash"]):
             continue
         if re.search(rule["pattern"], cmd) and not (rule.get("unless") and re.search(rule["unless"], cmd)):
             block(rule["message"])
+    experiments_reminder(data, cfg, tool, cmd)
 
 
 def post_tool(data, cfg):
     tool, inp = data.get("tool_name", ""), data.get("tool_input", {})
     path = posix(inp.get("file_path") or inp.get("notebook_path") or inp.get("path") or "")
     cmd = inp.get("command", "")
+
+    if tool in EDIT_TOOLS and path and guard_flags(cfg)["control_chars"]:
+        report = control_char_report(path)
+        if report:
+            block(f"Edited file {path} has {report}. Fix it with the Edit tool (or rewrite with Write) before "
+                  "moving on.")
+    if not cfg:
+        return
+    ex = cfg.get("experiments") or {}
+    if tool in EDIT_TOOLS and any_match(ex.get("plan"), path):
+        mark(data, "experiment.plan", path)
 
     for r in cfg.get("reminders", []):
         name = r.get("name", "reminder")
@@ -249,8 +377,10 @@ def main():
     if event == "prompt":
         prompt(data, cfg)
         return
-    if cfg:
-        {"pre-tool": pre_tool, "post-tool": post_tool, "stop": stop}[event](data, cfg)
+    if event in ("pre-tool", "post-tool"):  # guards run without a config
+        {"pre-tool": pre_tool, "post-tool": post_tool}[event](data, cfg)
+    elif cfg:
+        stop(data, cfg)
     if event == "post-tool":
         big_output(data, cfg)
 

@@ -3,7 +3,11 @@ Working habits (agent-habits plugin). Apply them without restating them.
   facts as tested / researched / guess, never present an inference as data. Say plainly what wasn't checked.
 - Before building: name the unknowns and guesses that change the result, and ask the user when an answer changes
   the build. Write the expected results (numbers, checks) down first; a result that misses them is a finding to
-  report, never a reason to edit the expectation.
+  report, never a reason to edit the expectation. Before a long scripted experiment (emulator / engine runs, more
+  than ~3 runs): the `experiment-plan` skill (assumptions tagged verified / needs-user / unknown, files checked on
+  disk, run budget), and stop for the user on anything needs-user.
+- Files are written with the Write/Edit tools, never through shell heredocs, echo or Set-Content (hook-enforced):
+  those have left NUL bytes, form feeds and CRLF/LF mixes behind.
 - Same failure 3 times: stop changing things. Report what was tried, the evidence from each attempt and the best
   guess, and let the user decide (offer `/advisor opus` as one option).
 - Advisor: off by default. Suggest `/advisor opus` in one line only at hard decisions (big multi-step plan with

@@ -25,8 +25,11 @@ publishes, migrations), log locations. Existing `.claude/habits.json`: read it a
 Schema and a full example: `${CLAUDE_PLUGIN_ROOT}/examples/habits.example.json`. Keys: `block` (tools, pattern,
 unless, message), `check` (path regex, command argv with `{file}`, message), `reminders` (name, on_edit,
 on_command, on_read, on_url, on_search, docs, message, optional once_per_session: remind at most once per
-session, for rules that trigger on every turn of a research or test session). Patterns are case-insensitive regexes; paths use forward
-slashes. Keep triggers narrow: a reminder that fires on unrelated work trains everyone to ignore it.
+session, for rules that trigger on every turn of a research or test session), `experiments` (on_command = long-run
+launches, plan = path patterns of the plan / test-log files; one reminder per session to run the `experiment-plan`
+skill when a launch comes before a plan), `guards` (shell_writes, control_chars; both on by default, set false only
+with a reason). Patterns are case-insensitive regexes; paths use forward slashes. Keep triggers narrow: a reminder
+that fires on unrelated work trains everyone to ignore it.
 
 Test each rule before finishing: pipe a sample hook JSON into
 `python -I "${CLAUDE_PLUGIN_ROOT}/scripts/habits.py" <pre-tool|post-tool|stop>` with `cwd` set to the project.

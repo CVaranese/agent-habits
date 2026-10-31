@@ -1,6 +1,11 @@
 {
-  "_comment": "Copy to <project>/.claude/habits.json and edit. All patterns are case-insensitive regexes searched in paths (forward slashes), commands, URLs or queries. docs: files or folders, relative to the project or absolute; a reminder fires at session end if a trigger happened and none of its docs changed afterwards. once_per_session (optional): remind at most once per session, for rules that would otherwise fire every turn. tokens (optional, these are the defaults): context warning past context_warn then every context_step tokens; big_output = tool output size (tokens) that gets a nudge.",
+  "_comment": "Copy to <project>/.claude/habits.json and edit. All patterns are case-insensitive regexes searched in paths (forward slashes), commands, URLs or queries. docs: files or folders, relative to the project or absolute; a reminder fires at session end if a trigger happened and none of its docs changed afterwards. once_per_session (optional): remind at most once per session, for rules that would otherwise fire every turn. tokens (optional, these are the defaults): context warning past context_warn then every context_step tokens; big_output = tool output size (tokens) that gets a nudge. guards (optional, both default true, no config needed): shell_writes blocks heredoc / multi-line echo / Set-Content writes into non-temp files (use Write/Edit); control_chars reports NUL, form feed and other control bytes, invalid UTF-8 and mixed line endings in a just-edited file. experiments (optional): on_command = long-run launches; the first one in a session with no edit to a file matching plan gets a one-time reminder to write the experiment plan (skill experiment-plan); message overrides the default text.",
   "tokens": { "context_warn": 200000, "context_step": 100000, "big_output": 5000 },
+  "guards": { "shell_writes": true, "control_chars": true },
+  "experiments": {
+    "on_command": ["\\bbenchmark\\.py\\b|\\brun_suite\\.py\\b"],
+    "plan": ["/docs/experiments/.*\\.md$"]
+  },
   "block": [
     {
       "tools": ["Bash"],

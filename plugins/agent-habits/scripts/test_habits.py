@@ -92,6 +92,59 @@ def main():
         expect("small output quiet", run("post-tool", small, proj)[1].strip(), "")
         img = {**t, "tool_name": "Read", "tool_input": {"file_path": "C:/x/shot.png"}, "tool_response": {}}
         expect("image at big context nudged", "Image read" in run("post-tool", img, proj)[1], True)
+        # shell write guard (built in): heredoc / multi-line echo into a source file blocked, program-feeding passes
+        def sh(cmd, tool="Bash"):
+            return run("pre-tool", {**s, "tool_name": tool, "tool_input": {"command": cmd}}, proj)[0]
+        expect("heredoc write blocked", sh("cat > src/new.py <<'EOF'\nx = 1\nEOF"), 2)
+        expect("heredoc append blocked", sh("cat <<EOF >> CLAUDE.md\nline\nEOF"), 2)
+        expect("heredoc tee blocked", sh("cat <<EOF | tee docs/a.md\nline\nEOF"), 2)
+        expect("multi-line echo blocked", sh('echo "a\nb" > src/x.txt'), 2)
+        expect("printf with newlines blocked", sh("printf 'a\\nb\\n' > src/x.txt"), 2)
+        expect("git commit -F - heredoc passes", sh("git commit -F - <<'EOF'\nsubject\n\nbody\nEOF"), 0)
+        expect("python - heredoc passes", sh("python - <<'EOF'\nprint(1)\nEOF"), 0)
+        expect("heredoc to temp passes", sh("cat > /tmp/x.json <<EOF\n{}\nEOF"), 0)
+        expect("heredoc to scratchpad passes", sh("cat > \"C:/Users/u/AppData/Local/Temp/claude/s/scratchpad/in.json\" "
+                                                  "<<EOF\n{}\nEOF"), 0)
+        expect("heredoc with 2>&1 only passes", sh("python - <<EOF 2>&1\nprint(1)\nEOF"), 0)
+        expect("single-line echo append passes", sh("echo 'x' >> .gitignore"), 0)
+        expect("program output redirect passes", sh("echo start\npython t.py > out.txt\nhead out.txt"), 0)
+        expect("ps here-string Set-Content blocked", sh("@'\nline\n'@ | Set-Content -Path src/a.txt", "PowerShell"), 2)
+        expect("ps Set-Content blocked", sh("Set-Content src/a.txt $x", "PowerShell"), 2)
+        code, out = run("pre-tool", {**s, "tool_name": "PowerShell", "tool_input": {
+            "command": "@'\nl1\nl2\n'@ | Set-Content -Encoding utf8 Lua/Captain.Lua"}}, proj)
+        expect("ps positional target after flag named", code == 2 and "Lua/Captain.Lua" in out, True)
+        expect("ps here-string commit passes", sh("git commit -m @'\nsubject\n'@", "PowerShell"), 0)
+        expect("ps Out-File to temp passes", sh("@'\nx\n'@ | Out-File $env:TEMP/x.txt", "PowerShell"), 0)
+        # control-character guard (built in): NUL / form feed / invalid UTF-8 / mixed endings reported after an edit
+        def edited(name, content):
+            f = proj / "src" / name
+            f.write_bytes(content)
+            return run("post-tool", {**s, "tool_name": "Edit", "tool_input": {"file_path": str(f)}}, proj)
+        code, out = edited("nul.md", b"ok\n\x00bad\n")
+        expect("NUL byte reported", code == 2 and "NUL at line 2" in out, True)
+        code, out = edited("ff.md", b"ok\n\x0cbad\n")
+        expect("form feed reported", code == 2 and "form feed" in out, True)
+        code, out = edited("cp1252.md", "caf\xe9\n".encode("cp1252"))
+        expect("invalid UTF-8 reported", code == 2 and "UTF-8" in out, True)
+        code, out = edited("mixed.md", b"a\r\nb\nc\r\n")
+        expect("mixed line endings reported", code == 2 and "mixed line endings" in out, True)
+        expect("clean CRLF file passes", edited("crlf.md", "caf\xe9\r\n\tok\r\n".encode("utf-8"))[0], 0)
+        expect("clean LF file passes", edited("lf.md", b"a\nb\n")[0], 0)
+        # experiments reminder: first long-run launch without a plan -> once; with a plan edit -> none
+        cfg = json.loads((proj / ".claude" / "habits.json").read_text())
+        cfg["experiments"] = {"on_command": [r"run_pie_session|tools[/\\]dolphin[/\\]trace\.py"],
+                              "plan": [r"/test-logs/.*\.md$"]}
+        (proj / ".claude" / "habits.json").write_text(json.dumps(cfg))
+        launch = {**s, "tool_name": "Bash", "tool_input": {"command": "python -I tools/dolphin/trace.py specs/a.json"}}
+        code, out = run("pre-tool", launch, proj)
+        expect("first launch without plan reminds", code == 0 and "experiment plan" in out and "PreToolUse" in out, True)
+        expect("second launch quiet", run("pre-tool", launch, proj)[1].strip(), "")
+        s2 = {**s, "session_id": s["session_id"] + "b"}
+        run("post-tool", {**s2, "tool_name": "Write", "tool_input": {"file_path": str(proj / "docs/test-logs/p.md")}},
+            proj)
+        expect("launch after plan quiet", run("pre-tool", {**s2, **launch}, proj)[1].strip(), "")
+        expect("unrelated command quiet", run("pre-tool", {**s2, "tool_name": "Bash",
+                                                           "tool_input": {"command": "git status"}}, proj)[1].strip(), "")
         # broken config never blocks
         (proj / ".claude" / "habits.json").write_text("{ not json")
         expect("broken config exits 0", run("pre-tool", {**s, "tool_name": "Bash",

@@ -2,6 +2,15 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-10-31 — shell / file guards, experiment gate (v0.3.0)
+Source: a `/insights` report over 190 sessions (buggy code and wrong approach as top friction; heredoc / NUL /
+form-feed / CRLF file damage, runs launched on unverified assumptions or missing files). The prose rules existed in
+memory and didn't stop the repeats, so they became hooks: built-in `shell_writes` block (heredoc / multi-line echo /
+Set-Content into non-temp files) and `control_chars` report (control bytes, invalid UTF-8, mixed line endings after
+an edit), both on without config, off via `"guards"`. New `experiments` config + `experiment-plan` skill: the first
+long-run launch in a session with no plan file edited gets one reminder (PreToolUse `additionalContext`; a
+reminder, not a block, per the hooks-only-for-zero-exception-rules guidance). `test_habits.py` covers all of it.
+
 ## 2026-10-14 — initial version
 Habits from the author's own project sessions: evidence-first, expected results before work, 3-attempt cap, advisor
 suggestions only at hard points (`/advisor`, Claude Code docs "advisor"), rules → hooks, cheap read-only agents,
