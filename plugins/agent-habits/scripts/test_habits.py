@@ -210,7 +210,9 @@ def main():
             "- **Used in:** `wave_land`, `noSuchFunction`\n"
             "  - nested:\n    - see [nested](NESTED.md)\n\n    [in an indented code block](CODE.md)\n",
             encoding="utf-8")
-        (kbp / "docs" / "knowledge" / "B.md").write_text("# B\n<a id=\"e-fall\"></a>\n### Fall speed is capped\n")
+        (kbp / "docs" / "knowledge" / "B.md").write_text("# B\n<a id=\"e-fall\"></a>\n### Fall speed is capped\n"
+                                                         "[spaced](run%2092.md)\n")
+        (kbp / "docs" / "knowledge" / "run 92.md").write_text("x\n")
         (kbp / "docs" / "knowledge" / "AUDIT.md").write_text("[x](missing.md)\n")
         subprocess.run(["git", "init", "-q", str(kbp)], check=True)
         subprocess.run(["git", "-C", str(kbp), "add", "-A"], check=True)

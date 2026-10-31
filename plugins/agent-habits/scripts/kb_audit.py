@@ -20,6 +20,7 @@ import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
+from urllib.parse import unquote
 
 LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)\)")
 ANCHOR_TAG = re.compile(r"<a\s+(?:id|name)=[\"']([^\"']+)[\"']", re.I)
@@ -140,7 +141,7 @@ def audit(project):
                 if re.match(r"^[a-z]+:", target, re.I):
                     continue
                 file_part, _, frag = target.partition("#")
-                dest = (f.parent / file_part).resolve() if file_part else f
+                dest = (f.parent / unquote(file_part)).resolve() if file_part else f
                 if not dest.exists():
                     found["broken link"].append((*where, target))
                 elif frag and dest.suffix == ".md" and frag not in anchors(dest):
