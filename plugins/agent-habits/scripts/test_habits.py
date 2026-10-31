@@ -152,6 +152,69 @@ def main():
         expect("launch after plan quiet", run("pre-tool", {**s2, **launch}, proj)[1].strip(), "")
         expect("unrelated command quiet", run("pre-tool", {**s2, "tool_name": "Bash",
                                                            "tool_input": {"command": "git status"}}, proj)[1].strip(), "")
+        # knowledge guard: only the librarian agent writes knowledge_paths (Edit tools and shell writes)
+        cfg = json.loads((proj / ".claude" / "habits.json").read_text())
+        cfg["knowledge_paths"] = [r"/docs/knowledge/", r"/memory/[^/]+\.md$"]
+        cfg["reminders"].append({"name": "kb", "on_search": ["engine"], "docs": ["docs/knowledge"],
+                                 "to_librarian": True, "message": "record what was learned"})
+        (proj / ".claude" / "habits.json").write_text(json.dumps(cfg))
+        kb = str(proj / "docs" / "knowledge" / "ENGINE.md")
+
+        def tool(name, inp, **extra):
+            return run("pre-tool", {**s, "tool_name": name, "tool_input": inp, **extra}, proj)
+        code, out = tool("Edit", {"file_path": kb})
+        expect("main-session knowledge edit blocked", code == 2 and "agent-habits:librarian" in out, True)
+        expect("librarian knowledge edit passes", tool("Edit", {"file_path": kb}, agent_id="a2",
+                                                       agent_type="agent-habits:librarian")[0], 0)
+        expect("other subagent knowledge write blocked", tool("Write", {"file_path": kb}, agent_id="a3",
+                                                              agent_type="Explore")[0], 2)
+        expect("memory write blocked", tool("Write", {"file_path": "C:/u/.claude/projects/p/memory/x.md"})[0], 2)
+        expect("edit outside knowledge passes", tool("Edit", {"file_path": str(proj / "docs" / "CHANGELOG.md")})[0], 0)
+        expect("shell append to knowledge blocked", sh("echo x >> docs/knowledge/ENGINE.md"), 2)
+        expect("sed -i on knowledge blocked", sh("sed -i 's/a/b/' docs/knowledge/ENGINE.md"), 2)
+        expect("cp into knowledge blocked", sh("cp notes.md docs/knowledge/"), 2)
+        expect("ps Move-Item from knowledge blocked", sh("Move-Item docs/knowledge/ENGINE.md old.md", "PowerShell"), 2)
+        expect("cp out of knowledge passes", sh("cp docs/knowledge/ENGINE.md /tmp/x.md"), 0)
+        expect("reading knowledge passes", sh("grep -n fact docs/knowledge/ENGINE.md > /tmp/hits.txt"), 0)
+        expect("git add knowledge passes", sh("git add docs/knowledge/ENGINE.md && git commit -m 'kb: x'"), 0)
+        expect("knowledge path in commit body passes",
+               sh("git commit -F - <<'EOF'\nkb: merge\n\nmoved > docs/knowledge/ENGINE.md\nEOF"), 0)
+        code, out = run("pre-tool", {**s, "tool_name": "Bash", "agent_type": "agent-habits:librarian",
+                                     "tool_input": {"command": "sed -i 's/a/b/' docs/knowledge/ENGINE.md"}}, proj)
+        expect("librarian shell edit passes", code, 0)
+        run("post-tool", {**s, "tool_name": "WebSearch", "tool_input": {"query": "engine timing"}}, proj)
+        code, out = run("stop", s, proj)
+        expect("stop reminder points at the librarian", code == 2 and "librarian" in out, True)
+        # kb_audit: mechanical checks on a small knowledge base in a git repo
+        kbp = proj / "kbproj"
+        (kbp / "docs" / "knowledge").mkdir(parents=True)
+        (kbp / "src").mkdir()
+        (kbp / "src" / "engine_moved.py").write_text("def wave_land():\n    pass\n")
+        (kbp / ".claude").mkdir()
+        (kbp / ".claude" / "habits.json").write_text(json.dumps({"knowledge_audit": {
+            "files": ["docs/knowledge"], "code_roots": ["."], "report": "docs/knowledge/AUDIT.md"}}))
+        (kbp / "docs" / "knowledge" / "A.md").write_text(
+            "# Engine\n<a id=\"e-fall\"></a>\n### Fall speed is capped\nSee [B](B.md#nowhere) and [gone](C.md).\n"
+            "- **Evidence:** `src/old/engine_moved.py`, `src/never_was.py`, commit `abc1234`\n"
+            "- **Used in:** `wave_land`, `noSuchFunction`\n")
+        (kbp / "docs" / "knowledge" / "B.md").write_text("# B\n<a id=\"e-fall\"></a>\n### Fall speed is capped\n")
+        (kbp / "docs" / "knowledge" / "AUDIT.md").write_text("[x](missing.md)\n")
+        subprocess.run(["git", "init", "-q", str(kbp)], check=True)
+        subprocess.run(["git", "-C", str(kbp), "add", "-A"], check=True)
+        r = subprocess.run([sys.executable, "-I", str(HABITS.parent / "kb_audit.py"), "--project", str(kbp), "--json"],
+                           capture_output=True, text=True)
+        try:
+            got = {k: sorted(d["detail"] for d in v) for k, v in json.loads(r.stdout).items()}
+        except ValueError:
+            got = {"error": r.stdout + r.stderr}
+        want = {"broken link": ["C.md"], "missing anchor": ["B.md#nowhere"],
+                "moved path?": ["src/old/engine_moved.py -> now kbproj/src/engine_moved.py"],
+                "missing path": ["src/never_was.py"], "unknown commit": ["abc1234"],
+                "Used in name not in code": ["noSuchFunction"],
+                "duplicate title": ["'fall speed is capped' in A.md, B.md"], "duplicate anchor": ["e-fall x2"]}
+        expect("kb_audit finds each kind once, skips the report", got == want, True)
+        if got != want:
+            print("   got", got)
         # broken config never blocks
         (proj / ".claude" / "habits.json").write_text("{ not json")
         expect("broken config exits 0", run("pre-tool", {**s, "tool_name": "Bash",

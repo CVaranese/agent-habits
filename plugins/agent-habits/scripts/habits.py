@@ -7,7 +7,9 @@ agent-habits hooks. One script, one subcommand per hook event; reads the hook JS
                                   `context_warn` tokens: every call re-reads the whole context
     pre-tool        PreToolUse    blocks commands matching the project's `block` rules; built-in guard: shell file
                                   writes through heredocs / multi-line echo / Set-Content into non-temp paths are
-                                  blocked (use Write/Edit); `experiments` reminder (once per session) when a
+                                  blocked (use Write/Edit); edits / shell writes to `knowledge_paths` are blocked
+                                  unless the call comes from the librarian agent; `experiments` reminder (once per
+                                  session) when a
                                   long-run command starts and no plan file was written this session
     post-tool       PostToolUse   runs `check` commands on edited files; built-in guard: control bytes (NUL, form
                                   feed...), invalid UTF-8 and mixed line endings in the edited file are reported;
@@ -57,6 +59,12 @@ PS_WRITER = re.compile(r"\b(Set-Content|Add-Content|Out-File)\b", re.I)
 PS_TARGET = re.compile(r"-(?:Path|LiteralPath|FilePath)\s+(" + _Q + r"|\S+)|WriteAll(?:Text|Lines|Bytes)\(\s*(" + _Q + r")",
                        re.I)
 PS_CMDLET_ARGS = re.compile(r"\b(?:Set-Content|Add-Content|Out-File)\b([^|;\n]*)", re.I)
+
+# --- knowledge guard: only the librarian agent writes the paths in `knowledge_paths` ---------------------------------
+LIBRARIANS = {"agent-habits:librarian", "librarian"}   # plugin agent / a copy in .claude/agents
+# shell commands that change the files they name: every path argument counts, except cp / Copy-Item (destination only)
+SHELL_CHANGERS = re.compile(r"^\s*(?:(sed|perl)\b(?=[^\n]*\s-i)|(mv|rm|Remove-Item|Move-Item|Set-Content|Add-Content"
+                            r"|Out-File|Clear-Content)\b|(cp|Copy-Item)\b)", re.I)
 PS_FLAG = re.compile(r"-\w+(\s+(?!-)(?:" + _Q + r"|\S+))?")  # `-Encoding utf8`, `-Force`
 # targets that are not source files: temp dirs, the scratchpad, devices, stdout
 TEMP_TARGET = re.compile(r"(^|[/\\\"'=:])(tmp|temp|scratchpad?)([/\\\"']|$)|\$\{?(TMP|TEMP|TMPDIR|SCRATCH)|%TE?MP%"
@@ -200,6 +208,44 @@ def control_char_report(path):
     return "; ".join(problems) if problems else None
 
 
+def knowledge_targets(data, tool, inp):
+    """Files this tool call would change, as absolute forward-slash paths (relative ones resolved against cwd)."""
+    if tool in EDIT_TOOLS:
+        found = [inp.get("file_path") or inp.get("notebook_path") or ""]
+    elif tool in SHELL_TOOLS:
+        cmd = without_bodies(tool, inp.get("command", ""))
+        found = [m.group(1) for m in REDIRECT.finditer(cmd)] + [m.group(1) for m in TEE.finditer(cmd)]
+        for seg in re.split(r"[|;&\n]+", cmd):
+            m = SHELL_CHANGERS.match(seg)
+            if not m:
+                continue
+            words = [w for w in re.findall(_Q + r"|\S+", seg[m.end():]) if not w.startswith("-")]
+            found += words[-1:] if m.group(3) else words
+    else:
+        return []
+    out = []
+    for f in found:
+        f = f.strip().strip("\"'")
+        if not f or (tool in SHELL_TOOLS and TEMP_TARGET.search(f)):
+            continue
+        p = Path(os.path.expandvars(os.path.expanduser(f)))
+        out.append(posix(p if p.is_absolute() else project_dir(data) / p) + ("/" if f.endswith(("/", "\\")) else ""))
+    return out
+
+
+def knowledge_guard(data, cfg, tool, inp):
+    """Block writes to the knowledge base (cfg["knowledge_paths"]) from anyone but the librarian agent."""
+    paths = (cfg or {}).get("knowledge_paths")
+    if not paths or data.get("agent_type") in LIBRARIANS:
+        return
+    hits = [t for t in knowledge_targets(data, tool, inp) if any_match(paths, t)]
+    if hits:
+        block(f"{hits[0]} is in the knowledge base (habits.json knowledge_paths), which only the librarian agent "
+              "writes. Collect the findings (fact, evidence path, status tested / researched / guess) and hand them "
+              "over in one call at the end of the work: Agent tool, subagent_type agent-habits:librarian, prompt "
+              "starting with \"File:\". It picks the entry, merges instead of duplicating and links both ways.")
+
+
 def experiments_reminder(data, cfg, tool, cmd):
     """Once per session: a long-run command starts (cfg["experiments"]["on_command"]) with no plan file edited
     this session (cfg["experiments"]["plan"] path patterns, noted by post_tool)."""
@@ -308,6 +354,7 @@ def pre_tool(data, cfg):
                   "damaged files before (NUL bytes, form feeds, CRLF/LF mixes, cp1252). Use the Write or Edit tool "
                   "for files; a heredoc that only feeds a program (git commit -F -, python -) still works. "
                   "Temp paths (tmp, temp, the scratchpad) are exempt.")
+    knowledge_guard(data, cfg, tool, inp)
     for rule in (cfg or {}).get("block", []):
         if tool not in rule.get("tools", ["Bash"]):
             continue
@@ -371,6 +418,9 @@ def stop(data, cfg):
         done = marker(data, name + ".reminded")
         if docs_mtime(cfg, r.get("docs", [])) <= m.stat().st_mtime and not (r.get("once_per_session") and done.exists()):
             due.append(r["message"])
+            if r.get("to_librarian"):
+                due[-1] += (" Knowledge-base entries are written by the librarian agent (agent-habits:librarian): "
+                            "hand it all of this session's findings in one \"File:\" call (fact, evidence, status).")
             if r.get("once_per_session"):
                 done.write_text("1", encoding="utf-8")  # each blocked stop costs a full extra turn
         m.unlink()  # one reminder per batch of triggers

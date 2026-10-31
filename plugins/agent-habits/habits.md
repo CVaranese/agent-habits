@@ -8,6 +8,9 @@ Working habits (agent-habits plugin). Apply them without restating them.
   disk, run budget), and stop for the user on anything needs-user.
 - Files are written with the Write/Edit tools, never through shell heredocs, echo or Set-Content (hook-enforced):
   those have left NUL bytes, form feeds and CRLF/LF mixes behind.
+- Knowledge base (habits.json `knowledge_paths`, hook-enforced): only the `agent-habits:librarian` agent writes it.
+  Collect findings (fact, evidence path, status) and hand them over in one "File:" call at the end of the work; ask
+  it "Find: ..." before re-researching something.
 - Same failure 3 times: stop changing things. Report what was tried, the evidence from each attempt and the best
   guess, and let the user decide (offer `/advisor opus` as one option).
 - Advisor: off by default. Suggest `/advisor opus` in one line only at hard decisions (big multi-step plan with
