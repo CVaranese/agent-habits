@@ -48,7 +48,7 @@ BINARY_EXT = re.compile(r"\.(png|jpe?g|gif|webp|bmp|ico|pdf|zip|gz|7z|exe|dll|so
 
 # --- shell write guard: heredoc / multi-line echo / PowerShell here-string that lands in a file ---------------------
 _Q = r'"[^"]*"|\'[^\']*\''  # a quoted shell word
-HEREDOC = re.compile(r"<<-?\s*(?:" + _Q + r"|[A-Za-z_][\w-]*)")
+HEREDOC = re.compile(r"(?<!<)<<(?!<)-?\s*(?:" + _Q + r"|[A-Za-z_][\w-]*)")  # not a `<<<` here-string
 PS_HERESTRING = re.compile(r"@[\"']\s*\r?\n")
 # `> file`, `>> file`, `&> file`; not `2>&1`, `>&2`, `<<`
 REDIRECT = re.compile(r"(?:(?<![<>&\d])>{1,2}|&>)(?!&)\s*(" + _Q + r"|[^\s|;&<>]+)")
@@ -83,7 +83,7 @@ def load_config(data):
     for p in (d / ".claude" / "habits.json", project_dir(data) / ".claude" / "habits.json"):
         if p.is_file():
             cfg = json.loads(p.read_text(encoding="utf-8"))
-            cfg["_base"] = d
+            cfg["_base"] = p.parent.parent  # the project that holds this habits.json
             return cfg
     return None
 

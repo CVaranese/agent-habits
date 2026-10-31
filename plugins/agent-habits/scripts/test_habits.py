@@ -189,6 +189,12 @@ def main():
         expect("git add knowledge passes", sh("git add docs/knowledge/ENGINE.md && git commit -m 'kb: x'"), 0)
         expect("knowledge path in commit body passes",
                sh("git commit -F - <<'EOF'\nkb: merge\n\nmoved > docs/knowledge/ENGINE.md\nEOF"), 0)
+        # issue #2: a `<<<` here-string is no heredoc, so the lines after it are still checked
+        expect("knowledge write after a here-string blocked",
+               sh('cat <<< "$x"\necho hi > docs/knowledge/ENGINE.md'), 2)
+        expect("sed -i on knowledge after a here-string blocked",
+               sh("grep a <<< \"$x\"\nsed -i 's/a/b/' docs/knowledge/ENGINE.md"), 2)
+        expect("source write after a here-string blocked", sh('cat <<< "$x"\ncat > src/x.py <<EOF\nx\nEOF'), 2)
         code, out = run("pre-tool", {**s, "tool_name": "Bash", "agent_type": "agent-habits:librarian",
                                      "tool_input": {"command": "sed -i 's/a/b/' docs/knowledge/ENGINE.md"}}, proj)
         expect("librarian shell edit passes", code, 0)
@@ -231,6 +237,19 @@ def main():
         expect("kb_audit finds each kind once, skips the report", got == want, True)
         if got != want:
             print("   got", got)
+        # issue #2: habits.json found under cwd (a subproject), not CLAUDE_PROJECT_DIR -> its docs paths resolve there
+        bare = proj / "bare"   # CLAUDE_PROJECT_DIR without a habits.json of its own
+        sub = bare / "subproj"
+        (sub / ".claude").mkdir(parents=True)
+        (sub / "src").mkdir()
+        (sub / "docs").mkdir()
+        (sub / ".claude" / "habits.json").write_text(json.dumps({"reminders": [
+            {"name": "changelog", "on_edit": [r"/src/"], "docs": ["docs/CHANGELOG.md"], "message": "add a line"}]}))
+        ss = {"session_id": s["session_id"] + "sub", "cwd": str(sub)}
+        run("post-tool", {**ss, "tool_name": "Edit", "tool_input": {"file_path": str(sub / "src" / "a.txt")}}, bare)
+        time.sleep(0.05)
+        (sub / "docs" / "CHANGELOG.md").write_text("line")
+        expect("subproject docs edit counts", run("stop", ss, bare)[0], 0)
         # broken config never blocks
         (proj / ".claude" / "habits.json").write_text("{ not json")
         expect("broken config exits 0", run("pre-tool", {**s, "tool_name": "Bash",
