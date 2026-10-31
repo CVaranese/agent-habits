@@ -102,6 +102,13 @@ def main():
         expect("printf with newlines blocked", sh("printf 'a\\nb\\n' > src/x.txt"), 2)
         expect("git commit -F - heredoc passes", sh("git commit -F - <<'EOF'\nsubject\n\nbody\nEOF"), 0)
         expect("python - heredoc passes", sh("python - <<'EOF'\nprint(1)\nEOF"), 0)
+        # review of 7fce131: a `>` in the fed text / value word isn't a write target
+        expect("commit body with -> passes", sh("git commit -F - <<'EOF'\nfx: FAIL -> PASS\nEOF"), 0)
+        expect("python - with > passes", sh("python - <<'EOF'\nprint(1 > 0)\nEOF"), 0)
+        expect("ps here-string commit with -> passes", sh("git commit -m @'\na -> b\n'@", "PowerShell"), 0)
+        expect("ps Set-Content to temp with value passes", sh('Set-Content $env:TEMP/x.txt "hi"', "PowerShell"), 0)
+        expect("heredoc write after a fed heredoc blocked",
+               sh("git commit -F - <<'EOF'\na -> b\nEOF\ncat > src/x.py <<EOF\nx\nEOF"), 2)
         expect("heredoc to temp passes", sh("cat > /tmp/x.json <<EOF\n{}\nEOF"), 0)
         expect("heredoc to scratchpad passes", sh("cat > \"C:/Users/u/AppData/Local/Temp/claude/s/scratchpad/in.json\" "
                                                   "<<EOF\n{}\nEOF"), 0)

@@ -61,7 +61,7 @@ PS_FLAG = re.compile(r"-\w+(\s+(?!-)(?:" + _Q + r"|\S+))?")  # `-Encoding utf8`,
 # targets that are not source files: temp dirs, the scratchpad, devices, stdout
 TEMP_TARGET = re.compile(r"(^|[/\\\"'=:])(tmp|temp|scratchpad?)([/\\\"']|$)|\$\{?(TMP|TEMP|TMPDIR|SCRATCH)|%TE?MP%"
                          r"|AppData[/\\]Local[/\\]Temp|^[\"']?(-|/dev/\w+|NUL)[\"']?$", re.I)
-CONTROL_BYTES = frozenset(set(range(0, 9)) | {0x0B, 0x0C} | set(range(0x0E, 0x20)) | {0x7F})
+CONTROL_RE = re.compile(rb"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")   # all but tab, LF, CR
 CONTROL_NAMES = {0: "NUL", 0x0B: "VT", 0x0C: "form feed", 0x1B: "ESC", 0x7F: "DEL"}
 
 
@@ -129,6 +129,21 @@ def source_targets(targets):
     return [t for t in targets if t and not TEMP_TARGET.search(t.strip())]
 
 
+def without_bodies(tool, cmd):
+    """The command with heredoc / here-string bodies left out, so only the shell's own words are searched."""
+    if tool == "PowerShell":
+        return re.sub(r"@(['\"])\r?\n.*?\r?\n\1@", "@''@", cmd, flags=re.S)
+    out, ends = [], []
+    for ln in cmd.split("\n"):
+        if ends:
+            if ln.strip() == ends[0]:
+                ends.pop(0)
+            continue
+        out.append(ln)
+        ends = [m.group(0).lstrip("<-").strip().strip("'\"") for m in HEREDOC.finditer(ln)]
+    return "\n".join(out)
+
+
 def shell_write_target(tool, cmd):
     """The non-temp file a shell command writes multi-line text into (heredoc, multi-line echo/printf, PowerShell
     here-string / Set-Content), or None. A heredoc that only feeds a program (`git commit -F - <<EOF`) is fine."""
@@ -137,15 +152,17 @@ def shell_write_target(tool, cmd):
     if tool == "PowerShell":
         if not (PS_HERESTRING.search(cmd) or PS_WRITER.search(cmd)):
             return None
+        cmd = without_bodies(tool, cmd)
         found = ["".join(m.groups("")) for m in PS_TARGET.finditer(cmd)]
-        for m in PS_CMDLET_ARGS.finditer(cmd):  # positional path: the words left after `-Flag value` pairs
-            found += re.findall(_Q + r"|\S+", PS_FLAG.sub(" ", m.group(1)))
+        for m in PS_CMDLET_ARGS.finditer(cmd):  # positional path: the first word left after `-Flag value` pairs
+            found += re.findall(_Q + r"|\S+", PS_FLAG.sub(" ", m.group(1)))[:1]
         found += [m.group(1) for m in REDIRECT.finditer(cmd)]
         if not found:
             return "<unknown target>" if PS_WRITER.search(cmd) else None
         hits = source_targets(found)
         return hits[0] if hits else None
     if HEREDOC.search(cmd):
+        cmd = without_bodies(tool, cmd)   # a `>` in the fed text (commit message, python) is no redirect
         hits = source_targets([m.group(1) for m in REDIRECT.finditer(cmd)] + [m.group(1) for m in TEE.finditer(cmd)])
         if hits:
             return hits[0]
@@ -168,7 +185,7 @@ def control_char_report(path):
         return raw.count(nl, 0, i) + 1
 
     problems = []
-    hits = [(i, b) for i, b in enumerate(raw) if b in CONTROL_BYTES]
+    hits = [(m.start(), raw[m.start()]) for m in CONTROL_RE.finditer(raw)]
     if hits:
         shown = ", ".join("%s at line %d" % (CONTROL_NAMES.get(b, "0x%02X" % b), line(i)) for i, b in hits[:5])
         problems.append("%d control byte(s): %s" % (len(hits), shown))
@@ -304,6 +321,9 @@ def post_tool(data, cfg):
     path = posix(inp.get("file_path") or inp.get("notebook_path") or inp.get("path") or "")
     cmd = inp.get("command", "")
 
+    ex = (cfg or {}).get("experiments") or {}
+    if tool in EDIT_TOOLS and any_match(ex.get("plan"), path):   # before the guard: its block exits
+        mark(data, "experiment.plan", path)
     if tool in EDIT_TOOLS and path and guard_flags(cfg)["control_chars"]:
         report = control_char_report(path)
         if report:
@@ -311,9 +331,6 @@ def post_tool(data, cfg):
                   "moving on.")
     if not cfg:
         return
-    ex = cfg.get("experiments") or {}
-    if tool in EDIT_TOOLS and any_match(ex.get("plan"), path):
-        mark(data, "experiment.plan", path)
 
     for r in cfg.get("reminders", []):
         name = r.get("name", "reminder")
