@@ -3,6 +3,8 @@
 Personal Claude Code habits as a plugin, so every machine and account gets the same working style. General rules
 only: nothing from a specific project or employer goes in this repo.
 
+If these habits are useful to you, a ⭐ on the repo helps others find them.
+
 ## What's in it (`plugins/agent-habits/`)
 | Part | What it does |
 |---|---|
@@ -48,6 +50,8 @@ install is refused, ask whoever manages Claude Code there; don't work around it.
 - Edit here, bump `version` in `plugins/agent-habits/.claude-plugin/plugin.json`, push.
   Other machines: `claude plugin marketplace update agent-habits` (or `/plugin`), then restart the session.
 - Ask Claude "update my habits" (skill `habits-update`) to check for new Claude Code features and advice.
+- To hear about new versions, star the repo or use **Watch > All Activity** on GitHub (versions ship as pushes,
+  not GitHub Releases).
 
 ## Test
     python -I plugins/agent-habits/scripts/test_habits.py
