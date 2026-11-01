@@ -394,10 +394,11 @@ def emit(event, user=None, claude=None):
 
 # --- events -------------------------------------------------------------------------------------------------------
 
-# prompts the harness sends for background work, not typed by the user: a warning there landed mid-task and led to a
-# handoff in the middle of a step (2026-10-31, a Dolphin trace's task-notification at 203K)
-NOT_USER = ("<task-notification>", "<cross-session-message", "<agent-message", "<side-sessions-event>",
-            "<ci-monitor-event>")
+# blocks the harness sends for background work, not typed by the user: a warning on a prompt made only of these landed
+# mid-task and led to a handoff in the middle of a step (2026-10-31, a Dolphin trace's task-notification at 203K).
+# The user's own text can arrive after such a block in the same prompt: that prompt still warns
+NOT_USER = re.compile(r"<(system-reminder|task-notification|cross-session-message|agent-message|side-sessions-event|"
+                      r"ci-monitor-event)\b.*?</\1>", re.S)
 
 
 def prompt(data, cfg):
@@ -405,8 +406,9 @@ def prompt(data, cfg):
     ctx = context_tokens(data)
     if ctx is None or ctx < lim["context_warn"]:
         return
-    if any(t in str(data.get("prompt", "")) for t in NOT_USER):
-        return  # the next prompt the user types gets it (the step marker isn't written)
+    text = str(data.get("prompt") or "")
+    if text.strip() and not NOT_USER.sub("", text).strip():
+        return  # nothing typed: the next prompt the user types gets it (the step marker isn't written)
     step = (ctx - lim["context_warn"]) // lim["context_step"]
     m = marker(data, "context_step")
     if m.exists() and m.read_text(encoding="utf-8").strip() == str(step):

@@ -82,8 +82,10 @@ def main():
         ctx(250_000)
         note = {**t, "prompt": "<task-notification>\n<task-id>b1</task-id>\n</task-notification>"}
         expect("background notification quiet", run("prompt", note, proj)[1].strip(), "")
-        out = run("prompt", t, proj)[1]
-        expect("big context warns", "systemMessage" in out and "250K" in out, True)
+        # the user's text after a notification block, in the same prompt: still warns
+        typed = {**t, "prompt": "<system-reminder>\n" + note["prompt"] + "\n</system-reminder>\nReview and then push."}
+        out = run("prompt", typed, proj)[1]
+        expect("big context warns (typed after a notification)", "systemMessage" in out and "250K" in out, True)
         expect("same step quiet", run("prompt", t, proj)[1].strip(), "")
         ctx(320_000)
         expect("next step warns again", "320K" in run("prompt", t, proj)[1], True)
