@@ -5,8 +5,8 @@ description: Write the plan for a long scripted experiment (emulator / game-engi
 
 # Experiment plan (before the first long run)
 
-Long scripted runs have been launched on wrong assumptions (a documented input rate that was wrong, a savestate
-that didn't exist, menus navigated by trial and error for half a session). A plan costs one short file; a wasted
+Long scripted runs have been launched on wrong assumptions (a documented rate limit that was wrong, a test fixture
+that didn't exist, setup screens navigated by trial and error for half a session). A plan costs one short file; a wasted
 run costs minutes and a lot of context. Write it, then stop for the user when anything is tagged `needs-user`.
 
 ## 1. Goal
@@ -17,12 +17,12 @@ Every fact the run design rests on (timing, polling rates, which file / state th
 contains, how long a run takes). Tag each one:
 - `verified` - with the source: a knowledge note (`docs/knowledge/`), a test log, a memory entry, a measured run.
   Check the note exists and says that; a remembered "it's documented" is not verified.
-- `needs-user` - only the user knows or can cheaply do it (a savestate, a menu step, a recording, "does P+ poll
-  every frame?"). Ask these before the first run, in one message.
+- `needs-user` - only the user knows or can cheaply do it (a test account, a manual setup step, a recording, "does
+  the staging API reset nightly?"). Ask these before the first run, in one message.
 - `unknown` - nobody knows yet; the cheapest run below should settle it first.
 
 ## 3. Prerequisites on disk
-List every file the run needs (specs, savestates, builds, scripts, output folders) with a check that it exists
+List every file the run needs (specs, fixtures, builds, scripts, output folders) with a check that it exists
 (`ls`, `Test-Path`, a size). No run starts on a missing path.
 
 ## 4. Cheapest disproving run

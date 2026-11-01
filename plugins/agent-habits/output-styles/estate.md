@@ -13,7 +13,7 @@ the retry limit?" or "Hettie read the build log: two errors, both in the parser.
 | Agent (subagent_type) | Name and post |
 |---|---|
 | agent-habits:librarian | Mabel, the Librarian (keeps the stacks: the project's knowledge base and memory) |
-| agent-habits:scheduler | Hollis, the butler (keeps the duty roster: tickets, the plan, what's next) |
+| agent-habits:scheduler | Hollis, the butler (keeps the duty roster: tasks, the plan, what's next) |
 | agent-habits:source-lookup | Pip, the errand runner (fetches one answer from named sources) |
 | agent-habits:log-triage | Hettie, the ledger clerk (reads long logs, reports what matters) |
 | Explore | the scouts |
@@ -46,6 +46,6 @@ Rules:
 - Flavour lives only in those one-line dispatch / return mentions. Everything else is written exactly as without this
   style: findings, numbers, evidence labels, plans, questions, recaps.
 - Never theme anything that leaves the chat: prompts sent to agents, files, docs, code, commit messages, PR text,
-  handoff briefs, librarian File calls, scheduler Queue / Close calls, hook replies.
+  task files and session briefs, librarian File calls, scheduler Queue / Close calls, hook replies.
 - No theming of the user, no extra flourishes, no in-character filler. One mention per dispatch at most.
 - If the theme would make a sentence less clear, drop it.

@@ -337,7 +337,7 @@ def audit(project):
                     is_file = re.search(r"\.(py|lua|md|json|csv|txt|cs)$", name, re.I)
                     if not IDENT.match(tok.strip()) or is_file:
                         continue
-                    last = re.split(r"[.:]", name)[-1]   # `Captain:Method`, `TABLE.field`: the member is the code
+                    last = re.split(r"[.:]", name)[-1]   # `Class:method`, `TABLE.field`: the member is the code
                     if len(last) > 3:
                         if last not in code_ok:
                             code_ok[last] = code_has(roots, last)

@@ -45,8 +45,9 @@ READ_TOOLS = {"Read", "Grep", "Glob"}
 TOKEN_DEFAULTS = {"context_warn": 200_000, "context_step": 100_000, "big_output": 5_000}
 GUARD_DEFAULTS = {"shell_writes": True, "control_chars": True}
 IMAGE_EXT = re.compile(r"\.(png|jpe?g|gif|webp|bmp)$", re.I)
-BINARY_EXT = re.compile(r"\.(png|jpe?g|gif|webp|bmp|ico|pdf|zip|gz|7z|exe|dll|so|pyc|pac|brsar|dat|bin|wav|mp3|ogg"
-                        r"|ttf|otf|woff2?|uasset|umap|fbx|sav|raw)$", re.I)
+# files the control-character guard skips; a project adds its own formats with "guards": {"binary_ext": [...]}
+BINARY_EXT = re.compile(r"\.(png|jpe?g|gif|webp|bmp|ico|pdf|zip|gz|tar|7z|exe|dll|so|dylib|pyc|class|jar|bin|dat"
+                        r"|wav|mp3|ogg|mp4|mov|ttf|otf|woff2?)$", re.I)
 
 # --- shell write guard: heredoc / multi-line echo / PowerShell here-string that lands in a file ---------------------
 _Q = r'"[^"]*"|\'[^\']*\''  # a quoted shell word
@@ -278,10 +279,13 @@ def inline_write_target(tool, cmd, cwd="."):
     return None
 
 
-def control_char_report(path):
-    """Problems in a just-edited text file: control bytes, invalid UTF-8, mixed line endings. None if clean."""
+def control_char_report(path, binary_ext=()):
+    """Problems in a just-edited text file: control bytes, invalid UTF-8, mixed line endings. None if clean.
+    binary_ext: the project's extra binary extensions (habits.json guards.binary_ext), skipped like BINARY_EXT."""
     p = Path(path)
-    if not p.is_file() or BINARY_EXT.search(path) or p.stat().st_size > 8_000_000:
+    extra = tuple("." + str(e).lower().lstrip(".") for e in binary_ext or ())
+    if not p.is_file() or BINARY_EXT.search(path) or (extra and path.lower().endswith(extra)) \
+            or p.stat().st_size > 8_000_000:
         return None
     raw = p.read_bytes()
     nl = b"\n"
@@ -343,11 +347,12 @@ def knowledge_guard(data, cfg, tool, inp):
               "at the end of the work: Agent tool, subagent_type agent-habits:librarian, prompt starting with "
               "\"File:\". It picks the entry, merges instead of duplicating and links both ways."),
              ((cfg.get("trackers") or {}).get("paths"), SCHEDULERS,
-              "is a work tracker (habits.json trackers.paths: ticket index, plan), which only the scheduler agent "
+              "is a work tracker (habits.json trackers.paths: task index, plan), which only the scheduler agent "
               "writes. Hand it over in one call: Agent tool, subagent_type agent-habits:scheduler, prompt starting "
               "with \"Queue:\" (new work found: what, why, evidence, files, what the user must answer first) or "
-              "\"Close:\" (ticket id, outcome, commits per repo, evidence, review findings). The ticket file's own "
-              "Progress notes stay yours to write.")]
+              "\"Close:\" (task id, outcome, commits per repo, evidence, review findings). The task file's own "
+              "headers and Progress notes stay yours to write; the generated board blocks are rewritten by the "
+              "project's tasks.py.")]
     for paths, owners, why in owned:
         if not paths or data.get("agent_type") in owners:
             continue
@@ -407,7 +412,7 @@ def emit(event, user=None, claude=None):
 # --- events -------------------------------------------------------------------------------------------------------
 
 # blocks the harness sends for background work, not typed by the user: a warning on a prompt made only of these landed
-# mid-task and led to a handoff in the middle of a step (2026-10-31, a Dolphin trace's task-notification at 203K).
+# mid-task and led to a hand-over in the middle of a step (2026-10-31, a long test run's task-notification at 203K).
 # The user's own text can arrive after such a block in the same prompt: that prompt still warns
 NOT_USER = re.compile(r"<(system-reminder|task-notification|cross-session-message|agent-message|side-sessions-event|"
                       r"ci-monitor-event)\b.*?</\1>", re.S)
@@ -433,7 +438,7 @@ def prompt(data, cfg):
          claude=f"Context is {k}K tokens and every call re-reads it. If this message starts a new topic or feature, "
                 "say so in one line and offer a fresh start before working. Mid-task, don't stop in the middle of a "
                 "step: at the next phase boundary (a step finished, verified and committed), offer to hand the rest "
-                "off as a written brief (the project's handoff file, or one copyable block) the user starts "
+                "off as a written brief (the project's task file, or one copyable block) the user starts "
                 "themselves, or `/compact <focus>` to stay here (the only option on mobile). Keep big reads in "
                 "subagents and avoid opening screenshots unless the answer needs the image.")
 
@@ -503,7 +508,7 @@ def post_tool(data, cfg):
     if tool in EDIT_TOOLS and any_match(ex.get("plan"), path):   # before the guard: its block exits
         mark(data, "experiment.plan", path)
     if tool in EDIT_TOOLS and path and guard_flags(cfg)["control_chars"]:
-        report = control_char_report(path)
+        report = control_char_report(path, guard_flags(cfg).get("binary_ext"))
         if report:
             block(f"Edited file {path} has {report}. Fix it with the Edit tool (or rewrite with Write) before "
                   "moving on.")

@@ -125,15 +125,15 @@ def main():
         expect("ps here-string Set-Content blocked", sh("@'\nline\n'@ | Set-Content -Path src/a.txt", "PowerShell"), 2)
         expect("ps Set-Content blocked", sh("Set-Content src/a.txt $x", "PowerShell"), 2)
         code, out = run("pre-tool", {**s, "tool_name": "PowerShell", "tool_input": {
-            "command": "@'\nl1\nl2\n'@ | Set-Content -Encoding utf8 Lua/Captain.Lua"}}, proj)
-        expect("ps positional target after flag named", code == 2 and "Lua/Captain.Lua" in out, True)
+            "command": "@'\nl1\nl2\n'@ | Set-Content -Encoding utf8 scripts/Main.lua"}}, proj)
+        expect("ps positional target after flag named", code == 2 and "scripts/Main.lua" in out, True)
         expect("ps here-string commit passes", sh("git commit -m @'\nsubject\n'@", "PowerShell"), 0)
         expect("ps Out-File to temp passes", sh("@'\nx\n'@ | Out-File $env:TEMP/x.txt", "PowerShell"), 0)
         # inline Python / sed -i writes (the librarian's runs of 2026-10-31 edited the docs this way)
         code, out = run("pre-tool", {**s, "tool_name": "Bash", "tool_input": {"command":
-            "cd /d/proj; python - <<'E'\nimport io\np='docs/knowledge/PPLUS.md'\ns=io.open(p,encoding='utf-8').read()\n"
+            "cd /d/proj; python - <<'E'\nimport io\np='docs/knowledge/ENGINE_NOTES.md'\ns=io.open(p,encoding='utf-8').read()\n"
             "io.open(p,'w',encoding='utf-8',newline='\\n').write(s.replace('a','b'))\nE"}}, proj)
-        expect("python heredoc rewriting a doc blocked", code == 2 and "docs/knowledge/PPLUS.md" in out, True)
+        expect("python heredoc rewriting a doc blocked", code == 2 and "docs/knowledge/ENGINE_NOTES.md" in out, True)
         expect("python -c open(..., 'a') blocked", sh("python -c \"open('src/x.py', 'a').write('y')\""), 2)
         expect("python Path.write_text blocked",
                sh("python3 - <<EOF\nfrom pathlib import Path\nPath('docs/a.md').write_text('x')\nEOF"), 2)
@@ -141,7 +141,7 @@ def main():
                sh("python - <<EOF\nd='docs'\nf=open(d+'/a.md','w')\nEOF"), 2)
         expect("sed -i on .md blocked", sh("cd docs && sed -i '466s/p-anim-7/p-anim-8/' PITFALLS.md"), 2)
         expect("python reading a doc passes", sh("python - <<'E'\nprint(open('docs/a.md').read()[:50])\nE"), 0)
-        expect("python open(..., 'rb') passes", sh("python -c \"open('a.pac', 'rb').read()\""), 0)
+        expect("python open(..., 'rb') passes", sh("python -c \"open('a.bin', 'rb').read()\""), 0)
         expect("python writing the scratchpad passes",
                sh("python - <<E\nopen('C:/Users/u/AppData/Local/Temp/claude/s/scratchpad/o.txt','w').write('x')\nE"), 0)
         expect("python writing a temp var passes",
@@ -157,7 +157,7 @@ def main():
                sh("python - <<E\nopen('out/table.csv','w').write('x')\nE"), 0)
         expect("python writing a tracked-area file in a repo blocked",
                sh("python - <<E\nopen('src/new.py','w').write('x')\nE"), 2)
-        expect("python script from a file passes", sh("python -I tools/pac_dump.py --out out/Captain"), 0)
+        expect("python script from a file passes", sh("python -I tools/export.py --out out/run1"), 0)
         expect("sed -i on .lua passes (not markdown)", sh("sed -i 's/a/b/' src/x.lua"), 0)
         expect("sed without -i on .md passes", sh("sed -n 1,20p docs/a.md"), 0)
         expect("commit body naming open(..., 'w') passes",
@@ -177,12 +177,17 @@ def main():
         expect("mixed line endings reported", code == 2 and "mixed line endings" in out, True)
         expect("clean CRLF file passes", edited("crlf.md", "caf\xe9\r\n\tok\r\n".encode("utf-8"))[0], 0)
         expect("clean LF file passes", edited("lf.md", b"a\nb\n")[0], 0)
+        expect("unknown binary format reported", edited("x.blob", b"\x00\x01")[0], 2)
+        cfg = json.loads((proj / ".claude" / "habits.json").read_text())
+        (proj / ".claude" / "habits.json").write_text(json.dumps({**cfg, "guards": {"binary_ext": ["blob"]}}))
+        expect("guards.binary_ext format skipped", edited("y.BLOB", b"\x00\x01")[0], 0)
+        (proj / ".claude" / "habits.json").write_text(json.dumps(cfg))
         # experiments reminder: first long-run launch without a plan -> once; with a plan edit -> none
         cfg = json.loads((proj / ".claude" / "habits.json").read_text())
-        cfg["experiments"] = {"on_command": [r"run_pie_session|tools[/\\]dolphin[/\\]trace\.py"],
+        cfg["experiments"] = {"on_command": [r"run_suite|tools[/\\]bench[/\\]trace\.py"],
                               "plan": [r"/test-logs/.*\.md$"]}
         (proj / ".claude" / "habits.json").write_text(json.dumps(cfg))
-        launch = {**s, "tool_name": "Bash", "tool_input": {"command": "python -I tools/dolphin/trace.py specs/a.json"}}
+        launch = {**s, "tool_name": "Bash", "tool_input": {"command": "python -I tools/bench/trace.py specs/a.json"}}
         code, out = run("pre-tool", launch, proj)
         expect("first launch without plan reminds", code == 0 and "experiment plan" in out and "PreToolUse" in out, True)
         expect("second launch quiet", run("pre-tool", launch, proj)[1].strip(), "")
@@ -242,12 +247,12 @@ def main():
         code, out = run("pre-tool", {**lib, "tool_name": "Edit",
                                      "tool_input": {"file_path": str(proj / "docs" / "knowledge" / "ENGINE.md")}}, proj)
         expect("librarian Edit of knowledge passes", code, 0)
-        # tracker guard: only the scheduler agent writes trackers.paths (index, plan); ticket files stay open
+        # tracker guard: only the scheduler agent writes trackers.paths (index, plan); task files stay open
         cfg = json.loads((proj / ".claude" / "habits.json").read_text())
-        cfg["trackers"] = {"map": "docs/handoffs/README.md",
-                           "paths": [r"/docs/handoffs/README\.md$", r"/docs/handoffs/PLAN\.md$"]}
+        cfg["trackers"] = {"map": "docs/tasks/README.md",
+                           "paths": [r"/docs/tasks/README\.md$", r"/docs/tasks/PLAN\.md$"]}
         (proj / ".claude" / "habits.json").write_text(json.dumps(cfg))
-        plan = str(proj / "docs" / "handoffs" / "PLAN.md")
+        plan = str(proj / "docs" / "tasks" / "PLAN.md")
         code, out = tool("Edit", {"file_path": plan})
         expect("main-session plan edit blocked", code == 2 and "agent-habits:scheduler" in out, True)
         expect("scheduler plan edit passes", tool("Edit", {"file_path": plan}, agent_id="a4",
@@ -256,9 +261,9 @@ def main():
                                                    agent_type="agent-habits:librarian")[0], 2)
         expect("scheduler knowledge edit blocked", tool("Edit", {"file_path": kb}, agent_id="a6",
                                                         agent_type="agent-habits:scheduler")[0], 2)
-        expect("ticket progress edit passes",
-               tool("Edit", {"file_path": str(proj / "docs" / "handoffs" / "H-3-x.md")})[0], 0)
-        expect("shell append to the index blocked", sh("echo '| H-4 |' >> docs/handoffs/README.md"), 2)
+        expect("task progress edit passes",
+               tool("Edit", {"file_path": str(proj / "docs" / "tasks" / "T-3-x.md")})[0], 0)
+        expect("shell append to the index blocked", sh("echo '| T-4 |' >> docs/tasks/README.md"), 2)
         run("post-tool", {**s, "tool_name": "WebSearch", "tool_input": {"query": "engine timing"}}, proj)
         code, out = run("stop", s, proj)
         expect("stop reminder points at the librarian", code == 2 and "librarian" in out, True)
@@ -381,6 +386,51 @@ def main():
         expect("agent_stats: summary row", (row["runs"], row["background"], row["reread_runs"], row["runs_with_reads"]),
                (2, 1, 1, 2))
 
+    # tasks.py: a project from the templates with two open tasks (one blocked), a lane, one closed task
+    plugin = HABITS.parent.parent
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        tdir = root / "work" / "tasks"
+        (tdir / "done").mkdir(parents=True)
+        (root / ".claude").mkdir()
+        (root / ".claude" / "habits.json").write_text(json.dumps({"tasks": {"dir": "work/tasks", "prefix": "W-"}}))
+        for rel in ("README.md", "PLAN.md", "done/README.md"):
+            text = (plugin / "templates" / "tasks" / rel).read_text(encoding="utf-8")
+            (tdir / rel).write_text(text.replace("T-", "W-").replace("| A: main | |", "| A: main | W-1, W-2, W-3 |"),
+                                    encoding="utf-8")
+        (tdir / "W-1-login.md").write_text(
+            "# W-1: Login page\n\n**Status:** open\n**Links:** [PROJ-7](https://jira.example/PROJ-7)\n\n"
+            "## State when written (2026-11-01)\n", encoding="utf-8")
+        (tdir / "W-2-search.md").write_text("# W-2: Search\n\n**Status:** blocked (API key)\n"
+                                            "**Needs you:** which search API?\n", encoding="utf-8")
+        (tdir / "done" / "W-3-setup.md").write_text("# W-3: Setup\n\n**Status:** open\n\n## Resolution (2026-10-30)\n"
+                                                    "Done: repo and CI set up.\n", encoding="utf-8")
+
+        def tasks(*args):
+            r = subprocess.run([sys.executable, "-I", str(HABITS.parent / "tasks.py"), "--project", str(root), *args],
+                               capture_output=True, text=True)
+            return r.returncode, r.stdout
+        code, out = tasks()
+        expect("tasks.py: lane naming a closed task reported", code == 1 and "W-3 is closed" in out, True)
+        plan = (tdir / "PLAN.md").read_text(encoding="utf-8")
+        (tdir / "PLAN.md").write_text(plan.replace("W-1, W-2, W-3", "W-1, W-2"), encoding="utf-8")
+        expect("tasks.py: rewrites, then --check passes", (tasks()[0], tasks("--check")[0]), (0, 0))
+        index = (tdir / "README.md").read_text(encoding="utf-8")
+        plan = (tdir / "PLAN.md").read_text(encoding="utf-8")
+        done = (tdir / "done" / "README.md").read_text(encoding="utf-8")
+        expect("tasks.py: index row with links and date",
+               "| [W-1](W-1-login.md) | Login page · [PROJ-7](https://jira.example/PROJ-7) | open | 2026-11-01 | — |"
+               in index, True)
+        expect("tasks.py: plan board", ("- [W-2](W-2-search.md) which search API?" in plan,
+                                        "- A: W-1 open -> W-2 blocked" in plan), (True, True))
+        expect("tasks.py: done list", "| [W-3](W-3-setup.md) | Setup | 2026-10-30 | Done: repo and CI set up. |" in done,
+               True)
+        (tdir / "W-1-login.md").write_text("# W-1: Login page\n\n**State:** open\n", encoding="utf-8")
+        code, out = tasks("--check")
+        expect("tasks.py: broken header fails --check", code == 1 and "W-1-login.md: no '**Status:**" in out, True)
+        (tdir / "PLAN.md").unlink()
+        (tdir / "W-1-login.md").write_text("# W-1: Login page\n\n**Status:** started\n", encoding="utf-8")
+        expect("tasks.py: no plan file is fine", (tasks()[0], tasks("--check")[0]), (0, 0))
     print("all passed" if not fails else f"{len(fails)} failed")
     sys.exit(1 if fails else 0)
 
