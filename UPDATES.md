@@ -2,6 +2,11 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-01 — optional Estate output style (v0.5.2)
+Source: the user's request. The Estate style lived only in the user's `~/.claude/output-styles/`; it moves into the
+plugin's `output-styles/` so every machine gets it, off unless picked. The plugin copy names only the plugin's and
+Claude Code's built-in agents (project agents get a made-up role), per this repo's no-project-content rule.
+
 ## 2026-11-01 — context warning: user prompts only, hand off at phase boundaries (v0.5.1)
 Source: the user's review of one session (brawl-coding / exporter H-26 + H-20). The 200K warning fired on a Dolphin
 trace's task-notification, not a user prompt, and led to a mid-step handoff that cost ~15 tool calls (committing a

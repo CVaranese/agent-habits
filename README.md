@@ -17,6 +17,7 @@ only: nothing from a specific project or employer goes in this repo.
 | `skills/experiment-plan` | The plan written before a long scripted experiment: goal, assumptions tagged verified / needs-user / unknown, prerequisites checked on disk, the cheapest disproving run, run budget; stops for the user on anything `needs-user`. |
 | `agents/source-lookup.md` (Sonnet) | One factual question → values with sources and kinds (data / derived / secondary / guess). Keeps big reads out of the main session. |
 | `agents/log-triage.md` (Haiku) | Large logs → only errors, crashes and the requested lines. |
+| `output-styles/estate.md` (optional) | "Estate" output style: subagent dispatches and returns told in one line as the staff of a small estate (Mabel the librarian, Pip, Hettie...); everything else, and anything that leaves the chat, unthemed. Off unless picked in the output-style setting. |
 | `skills/habits-setup` | Sets up `.claude/habits.json` + a CLAUDE.md section in a new project. |
 | `skills/habits-update` | Checks the Claude Code changelog / docs / posts since the last check and proposes changes in `UPDATES.md`. |
 
