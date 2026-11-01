@@ -314,6 +314,56 @@ def main():
     expect("index rows", kb_audit.entries(Path("ENGINE.md"), doc),
            [(1, "r2-x", "Fact one", "Tested", ["waveLand", "SPEED"]), (7, "plain-heading", "Plain heading", "Guess", [])])
 
+    # agent_stats: a background run whose file the main session re-reads after the notification, a foreground run
+    # whose file is read only before its answer and past the window
+    import agent_stats
+    with tempfile.TemporaryDirectory() as td:
+        sub = Path(td) / "s1" / "subagents"
+        sub.mkdir(parents=True)
+
+        def jl(path, rows):
+            path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+
+        def asst(*content, usage=None, side=False):
+            return {"type": "assistant", "isSidechain": side, "timestamp": "2026-11-01T10:00:00Z",
+                    "message": {"model": "claude-x", "content": list(content), "usage": usage or {}}}
+
+        def read(p):
+            return {"type": "tool_use", "name": "Read", "input": {"file_path": p}}
+        for name, tid, shape, path, answer in (
+                ("a1", "toolu_A", "background", "D:\\r\\x.py", {"type": "tool_use", "name": "SubagentHandback",
+                                                                 "input": {"message": "found it"}}),
+                ("a2", "toolu_B", "foreground", "D:/r/y.py", {"type": "text", "text": "done"})):
+            (sub / f"{name}.meta.json").write_text(json.dumps({"agentType": "habits:finder", "toolUseId": tid,
+                                                               "requestShape": shape}), encoding="utf-8")
+            jl(sub / f"{name}.jsonl", [asst(read(path), usage={"input_tokens": 10, "cache_read_input_tokens": 100,
+                                                               "output_tokens": 5}, side=True),
+                                       asst(answer, side=True)])
+        launch = {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "toolu_A",
+                                                           "content": "Async agent launched successfully."}]}}
+        jl(Path(td) / "s1.jsonl", [
+            launch,
+            asst(read("d:/r/y.py")),                       # before B's answer: not a re-read
+            {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "toolu_B",
+                                                      "content": "done"}]}},
+            asst({"type": "tool_use", "name": "Bash", "input": {}}),
+            asst({"type": "tool_use", "name": "Bash", "input": {}}),
+            {"type": "attachment", "attachment": {"prompt": "<task-notification><tool-use-id>toolu_A</tool-use-id>"}},
+            asst(read("D:/r/x.py")),                       # 1 call after A's answer: re-read
+            asst(read("D:/r/y.py")),                       # 3 calls after B's answer: past window 2
+        ])
+        runs = {r["tool_use_id"]: r for r in agent_stats.collect([Path(td)], window=2)}
+        expect("agent_stats: two runs", sorted(runs), ["toolu_A", "toolu_B"])
+        expect("agent_stats: hand-back is the answer, not a tool", (runs["toolu_A"]["answer"], runs["toolu_A"]["tools"]),
+               ("found it", 1))
+        expect("agent_stats: tokens fresh / cache read", (runs["toolu_A"]["fresh"], runs["toolu_A"]["cache_read"]),
+               (15, 100))
+        expect("agent_stats: re-read after notification", runs["toolu_A"]["rereads"], ["d:/r/x.py"])
+        expect("agent_stats: no re-read before answer or past window", runs["toolu_B"]["rereads"], [])
+        row = agent_stats.summarize(list(runs.values()))[0]
+        expect("agent_stats: summary row", (row["runs"], row["background"], row["reread_runs"], row["runs_with_reads"]),
+               (2, 1, 1, 2))
+
     print("all passed" if not fails else f"{len(fails)} failed")
     sys.exit(1 if fails else 0)
 

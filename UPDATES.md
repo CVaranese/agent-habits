@@ -2,6 +2,14 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-01 — per-agent use stats (v0.5.3)
+Source: the user asked whether the agents help, as step 1 of a retrospective that would later look for new agent
+opportunities and agents to retire. `kb_audit.py` counted only the librarian; `agent_stats.py` covers every agent
+type. First run, brawl-coding transcripts 2026-10-14 to 11-01: 83 runs (79 background), matching the meta.json count
+per type; librarian tokens 14.9M, equal to `kb_audit --use`. Re-reads within 15 calls: 3 of the 30 runs that used
+Read (pplus-lookup 1, general-purpose 2); 53 runs read only via Grep / Bash, which the check doesn't see yet.
+Background hand-backs come through a `SubagentHandback` tool call; the first version missed them (answer size 0).
+
 ## 2026-11-01 — optional Estate output style (v0.5.2)
 Source: the user's request. The Estate style lived only in the user's `~/.claude/output-styles/`; it moves into the
 plugin's `output-styles/` so every machine gets it, off unless picked. The plugin copy names only the plugin's and
