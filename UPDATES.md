@@ -2,6 +2,15 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-01 — context warning: user prompts only, hand off at phase boundaries (v0.5.1)
+Source: the user's review of one session (brawl-coding / exporter H-26 + H-20). The 200K warning fired on a Dolphin
+trace's task-notification, not a user prompt, and led to a mid-step handoff that cost ~15 tool calls (committing a
+half-done state, progress notes, a session card) and a crossed commit in the shared git index; the session card was
+unusable on mobile and the user finds session cards hard to organize. Changes: the warning skips background prompts
+(task notifications, other sessions' and agents' messages, side-session and CI events) and waits for the next
+prompt the user types; its advice now says to hand off at a phase boundary (step finished, verified, committed) as a
+written brief the user starts, or `/compact <focus>` (the only option on mobile).
+
 ## 2026-11-01 — inline-write guard, librarian index and use stats (v0.5.0)
 Source: a measurement of the librarian's first 1.5 days from the transcripts (18 runs, 9 sessions; 15 File, 3 Find).
 Find answers were good (entries, status, evidence; caught an entry title overstating its test) but cost 0.6-1.7M

@@ -394,11 +394,19 @@ def emit(event, user=None, claude=None):
 
 # --- events -------------------------------------------------------------------------------------------------------
 
+# prompts the harness sends for background work, not typed by the user: a warning there landed mid-task and led to a
+# handoff in the middle of a step (2026-10-31, a Dolphin trace's task-notification at 203K)
+NOT_USER = ("<task-notification>", "<cross-session-message", "<agent-message", "<side-sessions-event>",
+            "<ci-monitor-event>")
+
+
 def prompt(data, cfg):
     lim = token_limits(cfg)
     ctx = context_tokens(data)
     if ctx is None or ctx < lim["context_warn"]:
         return
+    if any(t in str(data.get("prompt", "")) for t in NOT_USER):
+        return  # the next prompt the user types gets it (the step marker isn't written)
     step = (ctx - lim["context_warn"]) // lim["context_step"]
     m = marker(data, "context_step")
     if m.exists() and m.read_text(encoding="utf-8").strip() == str(step):
@@ -409,8 +417,11 @@ def prompt(data, cfg):
     emit("UserPromptSubmit",
          user=f"Context is {k}K tokens; every message re-reads all of it. Start a new session for a new topic.",
          claude=f"Context is {k}K tokens and every call re-reads it. If this message starts a new topic or feature, "
-                "say so in one line and offer a fresh session (start_session / a handoff brief) before working. "
-                "Keep big reads in subagents and avoid opening screenshots unless the answer needs the image.")
+                "say so in one line and offer a fresh start before working. Mid-task, don't stop in the middle of a "
+                "step: at the next phase boundary (a step finished, verified and committed), offer to hand the rest "
+                "off as a written brief (the project's handoff file, or one copyable block) the user starts "
+                "themselves, or `/compact <focus>` to stay here (the only option on mobile). Keep big reads in "
+                "subagents and avoid opening screenshots unless the answer needs the image.")
 
 
 def big_output(data, cfg):
