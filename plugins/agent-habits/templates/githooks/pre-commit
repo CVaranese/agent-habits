@@ -1,35 +1,48 @@
 #!/bin/sh
 # copied from agent-habits <version> (plugins/agent-habits/templates/githooks/pre-commit); refresh with habits-update
-# 1. Shared index: parallel sessions stage into one index, so commit with explicit paths: git commit -- <paths>.
-#    git runs this hook on a temporary next-index-*.lock for a pathspec commit, on index / index.lock for a plain,
-#    -a or -i commit. Passes: pathspec commits, merge conclusions, nothing staged (message-only --amend).
+# Reads .claude/habits.json (repo root):
+# 1. "shared_index_guard": true (opt-in, for several agent sessions committing in one checkout): parallel sessions
+#    stage into one index, so commit with explicit paths: git commit -- <paths>. git runs this hook on a temporary
+#    next-index-*.lock for a pathspec commit, on index / index.lock for a plain, -a or -i commit. Passes: pathspec
+#    commits, merge / cherry-pick / revert conclusions, nothing staged (message-only --amend).
 #    A whole-index commit that is all yours, once: ALLOW_INDEX_COMMIT=1 git commit ...
-# 2. Runs each command in .claude/habits.json "precommit" (e.g. "python -I tools/tasks.py --check") from the repo
-#    root with CHECKS_COMMIT=1 set (a project's own check script may use it to skip slow parts on docs-only commits).
+# 2. "precommit": a command or a list of them (e.g. "python -I tools/tasks.py --check"), each run from the repo root
+#    with CHECKS_COMMIT=1 set (a project's own check may use it to skip slow parts on docs-only commits) and no stdin.
+#    Checks see the working tree, not the staged content: an unstaged edit is checked as it is on disk.
 #    A failure blocks the commit; lines starting with WARN are shown either way.
 # Skip once with: git commit --no-verify
 cd "$(git rev-parse --show-toplevel)" || exit 1
+PY=
+for p in python3 python; do "$p" -c '' 2>/dev/null && { PY=$p; break; }; done
+[ -n "$PY" ] || { echo "pre-commit: no python3 / python on PATH (needed to read .claude/habits.json) - commit blocked"; exit 1; }
+cfg=$("$PY" -I -c '
+import json, sys
+try:
+    cfg = json.load(open(".claude/habits.json", encoding="utf-8"))
+except FileNotFoundError:
+    cfg = {}
+except ValueError as e:
+    sys.exit("pre-commit: .claude/habits.json is not valid JSON (%s) - commit blocked" % e)
+cmds = cfg.get("precommit") or []
+cmds = [cmds] if isinstance(cmds, str) else cmds
+sys.stdout.buffer.write("\n".join(["1" if cfg.get("shared_index_guard") else "0"] + cmds).encode("utf-8") + b"\n")
+') || exit 1
+guard=$(printf '%s\n' "$cfg" | sed -n 1p)
+cmds=$(printf '%s\n' "$cfg" | sed 1d)
+gd=$(git rev-parse --git-dir)
+for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD; do [ -f "$gd/$f" ] && guard=0; done
 case "$(basename "${GIT_INDEX_FILE:-index}")" in
     next-index-*) ;;
-    *) if [ "$ALLOW_INDEX_COMMIT" != 1 ] && [ ! -f "$(git rev-parse --git-dir)/MERGE_HEAD" ] \
-          && ! git diff --cached --quiet; then
+    *) if [ "$guard" = 1 ] && [ "$ALLOW_INDEX_COMMIT" != 1 ] && ! git diff --cached --quiet; then
            echo "pre-commit: this commit takes the whole shared index:"; git diff --cached --name-only | sed 's/^/  /'
            echo "pre-commit: other sessions stage here too; commit with explicit paths: git commit -m ... -- <paths>"
            echo "pre-commit: all yours? ALLOW_INDEX_COMMIT=1 git commit ... - commit blocked"; exit 1
        fi ;;
 esac
-cmds=$(python -I -c '
-import json
-try:
-    print("\n".join(json.load(open(".claude/habits.json", encoding="utf-8")).get("precommit") or []))
-except OSError:
-    pass
-') || { echo "pre-commit: cannot read .claude/habits.json - commit blocked"; exit 1; }
 fail=0
 while IFS= read -r c; do
-    c=${c%"$(printf '\r')"}  # Python on Windows ends lines with CRLF
     [ -n "$c" ] || continue
-    out=$(CHECKS_COMMIT=1 sh -c "$c" 2>&1)
+    out=$(CHECKS_COMMIT=1 sh -c "$c" </dev/null 2>&1)
     if [ $? -ne 0 ]; then
         echo "$out" | grep -v '^PASS'
         echo "pre-commit: $c failed - commit blocked"

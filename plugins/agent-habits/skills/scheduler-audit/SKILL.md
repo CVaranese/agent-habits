@@ -5,7 +5,7 @@ description: Audit the project's work trackers with the scheduler agent - stale 
 
 # Audit the work trackers
 
-1. Read `.claude/habits.json`: `trackers` must exist with `map` and `audit.report` (optional `audit.repos`: repos
+1. Read `.claude/habits.json`: `tasks` (or `trackers.map`) and `trackers.audit.report` must exist (optional `audit.repos`: repos
    whose commits tasks cite; `audit.runs`: test-run indexes). Missing: say so and offer to add it (skill
    `habits-setup`); stop.
 2. Agent tool, `subagent_type: "agent-habits:scheduler"`, prompt starting with `Audit:` plus the project dir. Run it in the background when

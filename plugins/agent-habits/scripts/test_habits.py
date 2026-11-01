@@ -3,6 +3,7 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -264,6 +265,16 @@ def main():
         expect("task progress edit passes",
                tool("Edit", {"file_path": str(proj / "docs" / "tasks" / "T-3-x.md")})[0], 0)
         expect("shell append to the index blocked", sh("echo '| T-4 |' >> docs/tasks/README.md"), 2)
+        # trackers.map / paths derived from "tasks" alone (index, plan, done list; task files stay open)
+        cfg.pop("trackers")
+        cfg["tasks"] = {"dir": "docs/tasks", "prefix": "T-"}
+        (proj / ".claude" / "habits.json").write_text(json.dumps(cfg))
+        expect("tasks-only config: index, plan, done list blocked",
+               [tool("Edit", {"file_path": str(proj / "docs" / "tasks" / f)})[0]
+                for f in ("README.md", "PLAN.md", "done/README.md")], [2, 2, 2])
+        expect("tasks-only config: task file and done task pass",
+               [tool("Edit", {"file_path": str(proj / "docs" / "tasks" / f)})[0]
+                for f in ("T-3-x.md", "done/T-2-y.md")], [0, 0])
         run("post-tool", {**s, "tool_name": "WebSearch", "tool_input": {"query": "engine timing"}}, proj)
         code, out = run("stop", s, proj)
         expect("stop reminder points at the librarian", code == 2 and "librarian" in out, True)
@@ -401,10 +412,13 @@ def main():
         (tdir / "W-1-login.md").write_text(
             "# W-1: Login page\n\n**Status:** open\n**Links:** [PROJ-7](https://jira.example/PROJ-7)\n\n"
             "## State when written (2026-11-01)\n", encoding="utf-8")
-        (tdir / "W-2-search.md").write_text("# W-2: Search\n\n**Status:** blocked (API key)\n"
-                                            "**Needs you:** which search API?\n", encoding="utf-8")
+        (tdir / "W-2-search.md").write_text("# W-2: Search\n\n**Status:** Blocked(API key)\n"
+                                            "**Needs you:** which search API?\nSeen 2026-10-01.\n", encoding="utf-8")
         (tdir / "done" / "W-3-setup.md").write_text("# W-3: Setup\n\n**Status:** open\n\n## Resolution (2026-10-30)\n"
                                                     "Done: repo and CI set up.\n", encoding="utf-8")
+        (tdir / "done" / "W-4-old.md").write_text("# W-4: Old\n\n## Resolution\nDropped.\n", encoding="utf-8")
+        (tdir / "done" / "W-5-new.md").write_text("# W-5: New\n\n## Resolution (2026-10-31)\nDone.\n",
+                                                  encoding="utf-8")
 
         def tasks(*args):
             r = subprocess.run([sys.executable, "-I", str(HABITS.parent / "tasks.py"), "--project", str(root), *args],
@@ -422,15 +436,95 @@ def main():
                "| [W-1](W-1-login.md) | Login page · [PROJ-7](https://jira.example/PROJ-7) | open | 2026-11-01 | — |"
                in index, True)
         expect("tasks.py: plan board", ("- [W-2](W-2-search.md) which search API?" in plan,
-                                        "- A: W-1 open -> W-2 blocked" in plan), (True, True))
+                                        "- A: main: W-1 open -> W-2 blocked" in plan), (True, True))
+        expect("tasks.py: Written only from the State when written heading",
+               "| Blocked(API key) | — | which search API? |" in index, True)
         expect("tasks.py: done list", "| [W-3](W-3-setup.md) | Setup | 2026-10-30 | Done: repo and CI set up. |" in done,
                True)
+        expect("tasks.py: done list newest first, undated last",
+               [done.find(f"[W-{n}]") for n in (5, 3, 4)] == sorted(done.find(f"[W-{n}]") for n in (5, 3, 4)), True)
         (tdir / "W-1-login.md").write_text("# W-1: Login page\n\n**State:** open\n", encoding="utf-8")
         code, out = tasks("--check")
         expect("tasks.py: broken header fails --check", code == 1 and "W-1-login.md: no '**Status:**" in out, True)
+        (tdir / "W-1-login.md").write_text("# W-1: Login page\n\n**Status:** done\n", encoding="utf-8")
+        code, out = tasks("--check")
+        expect("tasks.py: bad Status value named", code == 1 and "Status 'done' is not open" in out, True)
+        r = subprocess.run([sys.executable, "-I", str(HABITS.parent / "tasks.py"), "--project"], capture_output=True)
+        expect("tasks.py: --project without a value", r.returncode, 2)
         (tdir / "PLAN.md").unlink()
         (tdir / "W-1-login.md").write_text("# W-1: Login page\n\n**Status:** started\n", encoding="utf-8")
         expect("tasks.py: no plan file is fine", (tasks()[0], tasks("--check")[0]), (0, 0))
+        # list file name from config: index (and the done list) named TASKS.md
+        (root / ".claude" / "habits.json").write_text(json.dumps({"tasks": {"dir": "work/tasks", "prefix": "W-",
+                                                                            "index": "TASKS.md"}}))
+        (tdir / "README.md").rename(tdir / "TASKS.md")
+        (tdir / "done" / "README.md").rename(tdir / "done" / "TASKS.md")
+        (tdir / "done" / "W-6-x.md").write_text("# W-6: Six\n\n## Resolution (2026-11-01)\nDone.\n", encoding="utf-8")
+        tasks()
+        expect("tasks.py: done list file from config", "[W-6]" in (tdir / "done" / "TASKS.md").read_text("utf-8"),
+               True)
+
+    # git hooks from templates/githooks in a temp repo (needs git and sh)
+    if shutil.which("git"):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+
+            def git(*args, ok=True):
+                r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True)
+                if ok and r.returncode:
+                    raise RuntimeError(f"git {args}: {r.stdout}{r.stderr}")
+                return r.returncode, r.stdout + r.stderr
+
+            def hab(c):
+                (repo / ".claude" / "habits.json").write_text(json.dumps(c))
+
+            git("init", "-q", "-b", "main")
+            git("config", "user.name", "t")
+            git("config", "user.email", "t@t")
+            (repo / ".claude").mkdir()
+            (repo / ".githooks").mkdir()
+            for h in ("pre-commit", "commit-msg"):
+                shutil.copy(plugin / "templates" / "githooks" / h, repo / ".githooks" / h)
+                os.chmod(repo / ".githooks" / h, 0o755)
+            (repo / "a.txt").write_text("0\n")
+            hab({})
+            git("add", ".")
+            git("commit", "-qm", "t: start")
+            git("config", "core.hooksPath", ".githooks")
+            (repo / "a.txt").write_text("1\n")
+            git("add", "a.txt")
+            expect("hook: guard off by default, whole-index commit passes", git("commit", "-qm", "t: one", ok=False)[0],
+                   0)
+            hab({"shared_index_guard": True, "precommit": ["cat > /dev/null", "echo WARN second-ran"]})
+            (repo / "a.txt").write_text("2\n")
+            git("add", "a.txt", ".claude/habits.json")
+            code, out = git("commit", "-m", "t: two", ok=False)
+            expect("hook: guard on blocks a whole-index commit", code == 1 and "whole shared index" in out, True)
+            code, out = git("commit", "-m", "t: two", "--", "a.txt", ".claude/habits.json", ok=False)
+            expect("hook: pathspec commit passes, stdin-reading check doesn't swallow the next",
+                   (code, "WARN second-ran" in out), (0, True))
+            hab({"shared_index_guard": True, "precommit": "exit 3"})
+            (repo / "b.txt").write_text("b\n")
+            code, out = git("commit", "-m", "t: three", "--", ".claude/habits.json", ok=False)
+            expect("hook: precommit as a string, failure blocks", code == 1 and "exit 3 failed" in out, True)
+            hab({"shared_index_guard": True})
+            git("commit", "-qm", "t: three", "--", ".claude/habits.json")
+            (repo / ".claude" / "habits.json").write_text("{bad")
+            code, out = git("commit", "-m", "t: four", "--", ".claude/habits.json", ok=False)
+            expect("hook: invalid habits.json named", code == 1 and "not valid JSON" in out, True)
+            hab({"shared_index_guard": True})
+            git("checkout", "-qb", "side")
+            (repo / "a.txt").write_text("side\n")
+            git("commit", "-qm", "t: side", "--", "a.txt")
+            git("checkout", "-q", "main")
+            (repo / "a.txt").write_text("main\n")
+            git("commit", "-qm", "t: main", "--", "a.txt")
+            git("cherry-pick", "side", ok=False)
+            (repo / "a.txt").write_text("both\n")
+            git("add", "a.txt")
+            expect("hook: cherry-pick conflict commit passes the guard", git("commit", "--no-edit", ok=False)[0], 0)
+            code, out = git("commit", "--allow-empty", "-m", "Bad subject", ok=False)
+            expect("hook: commit-msg blocks a bad subject", code == 1 and "lowercase area" in out, True)
     print("all passed" if not fails else f"{len(fails)} failed")
     sys.exit(1 if fails else 0)
 

@@ -2,6 +2,22 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-01 — admin part review fixes (v0.7.1)
+Source: review of v0.7.0. Fixes: pre-commit checks run with no stdin (one reading stdin swallowed the rest of the
+list), cherry-pick / revert conclusions pass the guard like merges, `precommit` may be a string, python found as
+`python3` or `python` with "no python" told apart from "habits.json invalid"; the shared-index guard
+(`shared_index_guard`) and commit-msg hook are opt-in; setup asks before replacing another hook setup, makes the
+hooks executable and notes `core.hooksPath` is per clone; default install trimmed (task files, tasks.py,
+pre-commit `--check`, scheduler Queue / Close / Next; lanes, Inbox, review queue, guard, commit-msg, audit offered);
+`tasks.script` dropped and `trackers.map` / `paths` derived from `tasks`; tasks.py: Status case-insensitive and
+split on `(`, bad value named, `--project` without a value exits 2, Written only from the State when written
+heading, undated closed tasks last, full lane labels, done list named by `tasks.index`; scheduler lane rules from
+the plan's intro, no 14-day "last updated" audit check, done-task Status ignored; habits-update compares copies with
+`grep -v`; `.gitattributes` keeps the hook templates LF. Tested: `test_habits.py` all pass, new cases for the
+derived trackers, tasks.py fixes and the hooks in a temp git repo (guard off by default, whole-index blocked with
+it on, pathspec passes, a stdin-reading check doesn't swallow the next, string precommit, invalid JSON, cherry-pick
+conflict commit passes, bad subject blocked); the old hook fails the stdin and cherry-pick cases.
+
 ## 2026-11-01 — admin part: tasks, generated board, hook templates (v0.7.0)
 Source: one project's process audit. Its task tracker (task files with Status / Needs you headers, a generated
 index / plan board / done list, a shared-index pre-commit guard, a commit-message hook) worked, but lived in that

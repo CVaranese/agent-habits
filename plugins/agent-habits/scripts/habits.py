@@ -97,8 +97,22 @@ def load_config(data):
         if p.is_file():
             cfg = json.loads(p.read_text(encoding="utf-8"))
             cfg["_base"] = p.parent.parent  # the project that holds this habits.json
+            derive_trackers(cfg)
             return cfg
     return None
+
+
+def derive_trackers(cfg):
+    """With a "tasks" config, fill a missing trackers.map (the task index) and trackers.paths (index, plan, done list;
+    not the task files) from it, with tasks.py's defaults. Explicit trackers values win."""
+    if not isinstance(cfg.get("tasks"), dict):
+        return
+    t = {"dir": "docs/tasks", "plan": "PLAN.md", "index": "README.md", "done": "done", **cfg["tasks"]}
+    d = t["dir"].strip("/")
+    tr = cfg.setdefault("trackers", {})
+    tr.setdefault("map", f"{d}/{t['index']}")
+    files = [t["index"], t["plan"], f"{t['done']}/{t['index']}"]
+    tr.setdefault("paths", ["/" + re.escape(f"{d}/{f}") + "$" for f in files if f])
 
 
 def posix(path):

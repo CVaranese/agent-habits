@@ -10,13 +10,12 @@
     "report": "docs/knowledge/AUDIT.md",
     "index": "docs/knowledge/INDEX.txt"
   },
-  "_comment_tasks": "tasks (optional, the admin part; habits-setup scaffolds it): input of the project's tools/tasks.py (copied from the plugin's scripts/tasks.py) and the scheduler agent. dir = task folder (one <prefix><n>-<slug>.md per task, headers **Status:** / **Needs you:** / **Links:**); prefix = id prefix; plan (optional file: lane tables under ### headings), index, done = relative to dir; script = where the project keeps tasks.py. Defaults: docs/tasks, T-, PLAN.md, README.md, done, tools/tasks.py. precommit: commands the plugin's .githooks/pre-commit template runs from the repo root (CHECKS_COMMIT=1 set); a failure blocks the commit.",
+  "_comment_tasks": "tasks (optional, the admin part; habits-setup scaffolds it): input of the project's tools/tasks.py (copied from the plugin's scripts/tasks.py) and the scheduler agent. dir = task folder (one <prefix><n>-<slug>.md per task, headers **Status:** / **Needs you:** / **Links:**); prefix = id prefix; plan (optional file: lane tables under ### headings), index, done = relative to dir (the done list is <done>/<index>). Defaults: docs/tasks, T-, PLAN.md, README.md, done. precommit: a command or a list the plugin's .githooks/pre-commit template runs from the repo root (CHECKS_COMMIT=1 set, no stdin, on the working tree); a failure blocks the commit. shared_index_guard (opt-in, default false): that hook also blocks whole-index commits, for several agent sessions committing in one checkout.",
   "tasks": { "dir": "docs/tasks", "prefix": "T-" },
   "precommit": ["python -I tools/tasks.py --check"],
-  "_comment_trackers": "trackers (optional): the work queue the scheduler agent (agent-habits:scheduler) keeps. map = the doc defining the task format and closing steps (the task README); paths = path regexes only the scheduler writes (index, plan, done list; not the task files, whose headers and progress the working session writes); lists = other lists an item may already live in (checked for duplicates and in the audit); audit = input of the scheduler-audit skill: report path, optional repos (repos whose commits tasks cite, searched with git log --grep <id>) and runs (test-run index files, for failed runs before a pass).",
+  "shared_index_guard": true,
+  "_comment_trackers": "trackers (optional): the work queue the scheduler agent (agent-habits:scheduler) keeps. map = the doc defining the task format and closing steps; paths = path regexes only the scheduler writes; with tasks set, both default to the task index and to the index, plan and done list (not the task files, whose headers and progress the working session writes), so set them only to override. lists = other lists an item may already live in (checked for duplicates and in the audit); audit = input of the scheduler-audit skill: report path, optional repos (repos whose commits tasks cite, searched with git log --grep <id>) and runs (test-run index files, for failed runs before a pass).",
   "trackers": {
-    "map": "docs/tasks/README.md",
-    "paths": ["/docs/tasks/README\\.md$", "/docs/tasks/PLAN\\.md$", "/docs/tasks/done/README\\.md$"],
     "lists": ["docs/INBOX.md", "docs/REVIEW_QUEUE.md"],
     "audit": { "report": "docs/tasks/AUDIT.md", "repos": ["."], "runs": ["docs/test-logs/README.md"] }
   },

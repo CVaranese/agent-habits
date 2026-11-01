@@ -1,9 +1,9 @@
 # Tasks (decided work, one session each)
 
 One file per task we've decided to do, written so a fresh session (or a subagent) can pick it up cold:
-`T-<n>-<slug>.md` here, closed ones in [done/](done/README.md). Order and lanes: [PLAN.md](PLAN.md) (optional).
-The other lists: [INBOX.md](../INBOX.md) (ideas and problems that aren't tasks yet; the user ranks it),
-[REVIEW_QUEUE.md](../REVIEW_QUEUE.md) (checks only the user can do). An item lives in one list.
+`T-<n>-<slug>.md` here, closed ones in [done/](done/README.md). Optional, when installed: order and lanes in
+[PLAN.md](PLAN.md), ideas that aren't tasks yet in [INBOX.md](../INBOX.md) (the user ranks it), checks only the
+user can do in [REVIEW_QUEUE.md](../REVIEW_QUEUE.md). An item lives in one list.
 
 **One place for each thing.** The task file is the only place for its status, its question for the user, decisions,
 progress and resolution. `python -I tools/tasks.py` copies them into the generated blocks (the index below, the
@@ -25,8 +25,7 @@ with work left, it writes a dated Progress section and gives the user the start 
 ## Write
 New tasks, this README, PLAN.md and done/README.md are written by the `agent-habits:scheduler` agent: one call whose
 prompt starts with `Queue:` (what, why, evidence, files, what the user must answer first, tracker links). The session
-working a task edits that task's file (headers, Decisions, Progress) and reruns `tools/tasks.py`. Anyone may add a
-line to the Inbox.
+working a task edits that task's file (headers, Decisions, Progress) and reruns `tools/tasks.py`.
 
 `T-<n>-<slug>.md`, the next free number, never reused:
 
@@ -36,11 +35,13 @@ line to the Inbox.
     **Needs you:** <question for the user>
     **Links:** [PROJ-123](https://jira.example/browse/PROJ-123), [spec](https://docs.example/abc)
 
-Needs you: only while the user is needed, required when blocked. Links: optional, outside trackers (Jira, Rally,
-GitHub issues) or docs; the index shows them. Sections: **Goal** (what done looks like), **State when written**
-(date, commit, the facts it rests on, each tested / researched / guess), **Check first** (commands that show the
-state still holds), **Steps**, **Done when** (the checks or numbers), **Decisions**, **Progress**, and at close
-**Resolution**. Link to evidence instead of copying it.
+    ## Goal
+    ## Steps
+    ## Done when
+
+Needs you: only while the user is needed, required when blocked. Links: optional (Jira, Rally, GitHub issues,
+docs); the index shows them. Optional sections: `## State when written (YYYY-MM-DD)` (the index's Written date),
+Check first, Decisions, Progress; Resolution is added at close. Link to evidence instead of copying it.
 
 ## Answer
 The user answers in chat (`T-12: yes`). The session writes the answer, dated, under the task's Decisions, removes

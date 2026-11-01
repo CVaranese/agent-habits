@@ -33,30 +33,37 @@ with a reason), `knowledge_paths` (path regexes only the `librarian` agent may w
 the auto-memory `/\.claude/projects/<project>/memory/`), `knowledge_map` (the doc(s) saying where each kind of fact
 goes and its entry shape), `knowledge_audit` (files, code_roots, repos, report: input of the `librarian-audit`
 skill; offer a weekly scheduled run), `to_librarian: true` on the knowledge reminder, `tasks` / `trackers` /
-`precommit` (the admin part, section 3b). Patterns are case-insensitive regexes; paths use forward slashes. Keep
+`precommit` / `shared_index_guard` (the admin part, section 3b). Patterns are case-insensitive regexes; paths use forward slashes. Keep
 triggers narrow: a reminder that fires on unrelated work trains everyone to ignore it.
 
 ## 3b. Admin (task tracker), only when the user wants it
-A task tracker the user can delegate from: one file per task (`**Status:**` / `**Needs you:**` / `**Links:**`), a
-generated board, the `scheduler` agent as its only writer of the index and plan, git hooks. Ask (one
-AskUserQuestion) which optional parts they want: plan lanes (parallel work; else no PLAN.md), a review queue, a
-changelog reminder; the id prefix (default `T-`) and the folder (default `docs/tasks`). Then, with
-`P=${CLAUDE_PLUGIN_ROOT}` and `V` = the `version` in `$P/.claude-plugin/plugin.json`:
-1. Copy `$P/scripts/tasks.py` to `tools/tasks.py`, `$P/templates/githooks/pre-commit` and `commit-msg` to
-   `.githooks/`, `$P/templates/tasks/` to the task folder (skip `PLAN.md` without lanes), `$P/templates/INBOX.md`
-   (and `REVIEW_QUEUE.md` if wanted) next to the task folder. Existing files: never overwrite; show the difference.
+A task tracker the user can delegate from. The default install is small: one file per task (`**Status:**`, plus
+`**Needs you:**` only while the user is needed, `**Links:**` optional), `tools/tasks.py` (generated index and done
+list), a pre-commit hook running `tasks.py --check`, and the `scheduler` agent's Queue / Close / Next. Ask (one
+AskUserQuestion, each default off): plan lanes (parallel work; else no PLAN.md), an Inbox for not-yet-tasks, a
+review queue, "several agent sessions committing in one checkout?" (shared-index guard), "use the `area: what`
+commit subject format?" (commit-msg hook), a weekly audit; the id prefix (default `T-`) and the folder (default
+`docs/tasks`). Then, with `P=${CLAUDE_PLUGIN_ROOT}` and `V` = the `version` in `$P/.claude-plugin/plugin.json`:
+1. Copy `$P/scripts/tasks.py` to `tools/tasks.py`, `$P/templates/githooks/pre-commit` (and `commit-msg` if wanted)
+   to `.githooks/`, `$P/templates/tasks/` to the task folder (skip `PLAN.md` without lanes), `$P/templates/INBOX.md`
+   / `REVIEW_QUEUE.md` (if wanted) next to the task folder. Existing files: never overwrite; show the difference.
    Plain copies (`cp`), then the Edit tool: in each copied script / hook replace `<version>` on its first lines
-   with `V`; with another prefix, replace `T-` in the copied docs. `git add --chmod=+x .githooks/*`.
+   with `V`; with another prefix, replace `T-` in the copied docs; drop the README's links to lists not installed.
+   `chmod +x .githooks/*` and `git add --chmod=+x .githooks/*`.
 2. `.claude/habits.json`: `"tasks": {"dir", "prefix"}` (only what differs from the defaults `docs/tasks`, `T-`,
-   `PLAN.md`, `README.md`, `done`), `"precommit": ["python -I tools/tasks.py --check"]` plus any fast project check
-   the user names, and `"trackers"`: `map` = the task README, `paths` = regexes for the task README, PLAN.md and
-   done/README.md (not the task files: working sessions write their own Progress), `lists` = the Inbox, review
-   queue and other lists items may live in, `audit`: `report` (e.g. `docs/tasks/AUDIT.md`), optional `repos`
-   (repos whose commits tasks cite) and `runs` (test-run indexes). Offer a weekly `scheduler-audit` run.
-3. `git config core.hooksPath .githooks`, then `python -I tools/tasks.py` and `python -I tools/tasks.py --check`
-   (must pass), and a test commit message through `.githooks/commit-msg` (a bad and a good subject).
+   `PLAN.md`, `README.md`, `done`; the scheduler's map and its write-protected files, the index, plan and done
+   list, follow from it), `"precommit": ["<py> -I tools/tasks.py --check"]` with `<py>` = whichever of `python3` /
+   `python` runs here (`python3 -c ''`), plus any fast project check the user names; `"shared_index_guard": true`
+   only if wanted. `"trackers"` only for the optional parts: `lists` = the Inbox, review queue and other lists
+   items may live in, `audit`: `report` (e.g. `docs/tasks/AUDIT.md`), optional `repos` (repos whose commits tasks
+   cite) and `runs` (test-run indexes); offer a weekly `scheduler-audit` run.
+3. Hooks: first `git config core.hooksPath` and `ls .git/hooks`: an existing hooksPath or non-`.sample` files
+   there (husky, the pre-commit framework, hand-made hooks) mean another hook setup; show it and ask the user
+   before replacing it. Then `git config core.hooksPath .githooks`, `python -I tools/tasks.py` and
+   `python -I tools/tasks.py --check` (must pass), and with commit-msg a bad and a good subject through it.
 4. CLAUDE.md: one paragraph: where tasks live, `Start T-<n>` to work one, new work goes through the scheduler
-   (`Queue:` / `Close:` / `Next:`), commit with explicit paths (`git commit -- <paths>`).
+   (`Queue:` / `Close:` / `Next:`), "after cloning: `git config core.hooksPath .githooks`" (hooks are per clone),
+   and with the guard: commit with explicit paths (`git commit -- <paths>`).
 
 Test each rule before finishing: pipe a sample hook JSON into
 `python -I "${CLAUDE_PLUGIN_ROOT}/scripts/habits.py" <pre-tool|post-tool|stop>` with `cwd` set to the project.

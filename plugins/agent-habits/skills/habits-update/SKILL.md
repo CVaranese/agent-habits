@@ -60,8 +60,8 @@ interactive run from a project that has them. `habits-setup` copies `scripts/tas
 `templates/githooks/pre-commit` / `commit-msg` into the project; each copy names the plugin version it came from on
 its first lines (`# copied from agent-habits <version>`).
 1. Find the copies: `grep -rl "copied from agent-habits" tools .githooks` (and any path habits.json `precommit`
-   names). Compare each with its source under `${CLAUDE_PLUGIN_ROOT}`, ignoring that line (`diff <(sed 1,3d a)
-   <(sed 1,3d b)` or read both).
+   names). Compare each with its source under `${CLAUDE_PLUGIN_ROOT}`, ignoring that line:
+   `diff <(grep -v 'copied from agent-habits' <copy>) <(grep -v 'copied from agent-habits' <source>)`.
 2. Same: nothing to do. Different: show the user the version line and the diff, and whether the project changed
    its copy (its `git log` on that file after the copy commit). Refresh only on their yes: `cp` the plugin's file,
    set the version line with the Edit tool, run `python -I tools/tasks.py --check` and the hook on a sample

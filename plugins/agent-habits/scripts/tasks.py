@@ -3,19 +3,21 @@
 
 Config: `.claude/habits.json` key "tasks" (all optional, these are the defaults):
     {"dir": "docs/tasks", "prefix": "T-", "plan": "PLAN.md", "index": "README.md", "done": "done"}
-plan / index / done are relative to dir. A project without a plan file just has no lanes and no plan board.
+plan / index / done are relative to dir; the closed list is <done>/<index>. A project without a plan file just has
+no lanes and no plan board.
 
 An open task (<dir>/<prefix><n>-<slug>.md, first line `# <prefix><n>: <title>`) carries:
-    **Status:** open | started | blocked [(note)]
+    **Status:** open | started | blocked [(note)]    (any case; the Status of a task in <done>/ is ignored)
     **Needs you:** <question for the user>          (only while one is open; required when blocked)
     **Links:** [text](url), [text](url)              (optional: Jira / Rally / GitHub issues, outside docs)
+Its "Written" date comes from a `## State when written (YYYY-MM-DD)` heading, else "—".
 A closed task (<dir>/<done>/) ends with a `## Resolution` section: the date in its heading (else its first date) is
-the closed date, its first line the summary. Lanes: the plan's tables under `### ` headings, first column the lane
-name, second column its task ids in order (hand-kept).
+the closed date (undated ones list last), its first line the summary. Lanes: the plan's tables under `### `
+headings, first column the lane name, second column its task ids in order (hand-kept).
 
 The task files are the one place a status, question, decision or resolution is written. This script copies them
 into the blocks between the <!-- board: ... --> and <!-- /board --> markers: the index table (index file), the plan's
-board (waiting on you, each lane's open tasks in order) and the closed list (<done>/README.md).
+board (waiting on you, each lane's open tasks in order) and the closed list (<done>/<index>).
 
     python -I tools/tasks.py           rewrite the blocks
     python -I tools/tasks.py --check   exit 1 if a block is stale, a task header is missing / wrong, or a plan
@@ -40,7 +42,11 @@ SUMMARY_LEN = 160
 
 def project_root(argv):
     if "--project" in argv:
-        return Path(argv[argv.index("--project") + 1]).resolve()
+        i = argv.index("--project") + 1
+        if i >= len(argv) or argv[i].startswith("--"):
+            print("usage: tasks.py [--check] [--project DIR]", file=sys.stderr)
+            sys.exit(2)
+        return Path(argv[i]).resolve()
     here = Path(__file__).resolve().parent
     for d in (here, *here.parents):
         if (d / ".claude" / "habits.json").is_file() or (d / ".git").exists():
@@ -68,6 +74,7 @@ class Board:
         self.index = self.dir / cfg["index"]
         self.plan = self.dir / cfg["plan"] if cfg.get("plan") else None
         self.done = self.dir / cfg["done"]
+        self.done_list = self.done / cfg["index"]
         p = re.escape(self.prefix)
         self.file_re = re.compile(rf"^{p}(\d+)-.*\.md$")
         self.title_re = re.compile(rf"^# {p}\d+: (.+)$", re.M)
@@ -88,10 +95,13 @@ class Board:
             text = p.read_text(encoding="utf-8")
             title = self.title_re.search(text)
             status, needs = header(text, "Status"), header(text, "Needs you")
-            written = re.search(r"^## State when written \((20\d\d-\d\d-\d\d)", text, re.M) or DATE.search(text)
-            state = status.split()[0] if status else None
-            if state not in STATES:
+            written = re.search(r"^## State when written \((20\d\d-\d\d-\d\d)", text, re.M)
+            state = re.split(r"[\s(]", status, 1)[0].lower() if status else None
+            if not status:
                 problems.append(f"{p.name}: no '**Status:** {' | '.join(STATES)}' line (a closed task moves to "
+                                f"{self.done.name}/)")
+            elif state not in STATES:
+                problems.append(f"{p.name}: Status '{status}' is not {' | '.join(STATES)} (a closed task moves to "
                                 f"{self.done.name}/)")
             elif state == "blocked" and not needs:
                 problems.append(f"{p.name}: blocked but no '**Needs you:**' line saying what for")
@@ -108,7 +118,7 @@ class Board:
             closed, summary = resolution(text)
             out.append({"id": f"{self.prefix}{n}", "n": n, "file": p.name,
                         "title": title.group(1) if title else p.stem, "closed": closed, "summary": summary})
-        return sorted(out, key=lambda t: (t["closed"], t["n"]), reverse=True)
+        return sorted(out, key=lambda t: (t["closed"] != "—", t["closed"], t["n"]), reverse=True)
 
     def lanes(self, plan):
         """[(lane, [ids])] from the plan's tables under `### ` headings: first column the lane, second its ids."""
@@ -118,7 +128,7 @@ class Board:
                 continue
             for first, ids in re.findall(r"^\| ?([^|]+?) ?\| ?([^|]*)\|", part, re.M):
                 if first.lower() != "lane" and not set(first) <= set("-: "):
-                    out.append((first.split(":")[0].strip(), self.id_re.findall(ids)))
+                    out.append((first.strip(), self.id_re.findall(ids)))
         return out
 
 
@@ -207,8 +217,8 @@ def main(argv):
         rel = os.path.relpath(b.dir, b.plan.parent).replace("\\", "/")
         link_dir = "" if rel == "." else rel + "/"
         targets.append((b.plan, lambda: plan_block(b, ts, plan, link_dir)))
-    if (b.done / "README.md").is_file():
-        targets.append((b.done / "README.md", lambda: done_block(cs)))
+    if b.done_list.is_file():
+        targets.append((b.done_list, lambda: done_block(cs)))
     stale = []
     for path, build in targets:
         text = path.read_text(encoding="utf-8")
