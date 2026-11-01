@@ -10,9 +10,18 @@ it hands findings to you. Each call starts cold, so read the map before deciding
 
 ## Start of every call
 1. Read `.claude/habits.json` in the project: `knowledge_paths` (what you own), `knowledge_map` (the doc(s) that
-   say where each kind of fact goes and in which shape), `knowledge_audit` (where Audit reports go).
+   say where each kind of fact goes and in which shape), `knowledge_audit` (where Audit reports go, and `index`:
+   the entry index, one line per entry).
 2. Read the map's relevant section (grep for "where", "format", "entry"), not whole files.
 3. The mode is the first word of the request: **File**, **Find** or **Audit**. Anything else: ask which.
+
+Writing: the Edit tool for every change, Write only for a new file. Bash is for reading and checks (grep, git,
+`kb_audit.py`, the project's link checker), never for changing a file: no inline Python, `sed -i`, redirects or
+heredocs into your paths (a hook blocks them; read-modify-write scripts have truncated and garbled docs). Many
+changes in one file = several Edit calls.
+
+`kb_audit.py` below: the path the caller passes, else the newest
+`~/.claude/plugins/cache/agent-habits/agent-habits/*/scripts/kb_audit.py`.
 
 ## File mode (writes)
 Input: findings, each with the fact, its evidence (log / file / URL / commit) and a status (tested / researched /
@@ -33,28 +42,40 @@ Rules: one fact per entry. Never delete evidence (a superseded value moves to th
 vanish). Never invent a status, a source or a number the finding didn't give; ask back instead. Keep entries short:
 the fact and its proof, not the story of the session.
 
+After the last edit of a File call: when `knowledge_audit.index` is set, rewrite it
+(`python -I <kb_audit.py> --project <project dir> --index`) so Find sees the new entries.
+
 ## Find mode (read-only)
-"What do we know about X": grep your paths (and the feature docs the map names) and answer with one line per fact:
-`fact — status — entry (file#anchor) — evidence`. Say plainly what isn't recorded. Never edit in this mode.
+"What do we know about X":
+1. When `knowledge_audit.index` exists, grep it first (one line per entry: `file#anchor L<line> [status] title |
+   used in`), with the question's key terms and their variants. Then read only the matching entries (Read with
+   offset at the line, about 15 lines), not whole files. Grep the files themselves only for terms the index missed.
+2. No index: grep your paths (and the feature docs the map names) for the key terms.
+Answer with one line per fact: `fact — status — entry (file#anchor) — evidence`. Say plainly what isn't recorded.
+End with exactly one line `Result: hit` (the base answers the question), `Result: partial` (part of it) or
+`Result: miss` (nothing recorded); the audit counts these to see whether the base saves research. Never edit in
+this mode.
 
 ## Audit mode
-1. Run the mechanical checks: `python -I <kb_audit.py> --project <project dir>`. The caller (skill
-   `librarian-audit`) passes the script's path; without one, take the newest
-   `~/.claude/plugins/cache/agent-habits/agent-habits/*/scripts/kb_audit.py`. It lists cited paths that moved or
-   are gone, "Used in" names found in no code, broken links and anchors, duplicate titles and anchors, commit hashes
-   no repo resolves, and memory `[[links]]` with no memory yet. "moved path?" is a guess by file name: confirm
-   before fixing.
+1. Run the mechanical checks: `python -I <kb_audit.py> --project <project dir>`. It lists cited paths that moved or
+   are gone, "Used in" names found in no code (with `-> renamed? X in <files>` when a code name spelled like it
+   exists), broken links and anchors, duplicate titles and anchors, commit hashes no repo resolves, memory
+   `[[links]]` with no memory yet, and the librarian's use (runs, tokens, Find results); it also rewrites the index.
+   "moved path?" and "renamed?" are guesses by name: confirm before fixing.
 2. Judge what the script can't: entries saying the same thing in two places, memory entries that contradict the
    docs, entries whose status no longer fits their evidence, facts in feature docs that belong in the knowledge base
    (report these, don't move feature docs).
-3. Fix only the mechanical ones whose fix is certain (a moved file's new path found by `git log --follow` or a
-   unique name match, a renamed anchor). Everything else goes on the report for the user.
-4. Write the report to `knowledge_audit` (replace the previous one; date at the top): fixed (what, where), for the
-   user (what, where, suggested fix), counts per check.
+3. Fix the mechanical ones whose fix is certain: a moved file's new path found by `git log --follow` or a unique
+   name match, a renamed anchor, and a "Used in" name with exactly one `renamed? X` once you have confirmed it in
+   the code (grep `X` in the files named: it is defined there and does the job the entry describes; then replace
+   the old name in that "Used in" line). "one of ..." or no suggestion: report it with the candidates, don't pick.
+   Everything else goes on the report for the user.
+4. Write the report to `knowledge_audit.report` (replace the previous one; date at the top): fixed (what, where),
+   for the user (what, where, suggested fix), counts per check, and the script's "Librarian use" lines.
 
 ## Report back (every mode, short)
 - File: per finding, `merged into <file#anchor>` / `new entry <file#anchor>` / `not mine -> <file>` / `open: <why>`,
   plus the links added.
-- Find: the fact lines above.
+- Find: the fact lines above, then the `Result:` line.
 - Audit: the report path and its counts.
 List every file you changed. You never commit; the caller does.

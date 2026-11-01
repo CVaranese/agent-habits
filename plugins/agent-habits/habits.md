@@ -6,8 +6,9 @@ Working habits (agent-habits plugin). Apply them without restating them.
   report, never a reason to edit the expectation. Before a long scripted experiment (emulator / engine runs, more
   than ~3 runs): the `experiment-plan` skill (assumptions tagged verified / needs-user / unknown, files checked on
   disk, run budget), and stop for the user on anything needs-user.
-- Files are written with the Write/Edit tools, never through shell heredocs, echo or Set-Content (hook-enforced):
-  those have left NUL bytes, form feeds and CRLF/LF mixes behind.
+- Files are written with the Write/Edit tools, never through shell heredocs, echo, Set-Content, inline Python
+  (`open(p, 'w')`) or `sed -i` (hook-enforced, `sed -i` on .md only): those have left NUL bytes, form feeds,
+  CRLF/LF mixes and truncated files behind.
 - Knowledge base (habits.json `knowledge_paths`, hook-enforced): only the `agent-habits:librarian` agent writes it.
   Collect findings (fact, evidence path, status) and hand them over in one "File:" call at the end of the work; ask
   it "Find: ..." before re-researching something.

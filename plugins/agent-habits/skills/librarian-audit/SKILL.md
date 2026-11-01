@@ -15,7 +15,8 @@ description: Audit the project's knowledge base with the librarian agent - stale
 
 3. When it returns: read the report's summary lines (not the whole file) and check the files it says it changed
    with `git diff --stat` in each repo. Anything changed outside the knowledge paths is a bug in the run: report it.
-4. Tell the user: counts per check, what was fixed, the items waiting for them (link the report). Commit the report
+4. Tell the user: counts per check, what was fixed, the items waiting for them (link the report), and the
+   librarian-use lines (runs and tokens per mode, Find hit / partial / miss). Commit the report
    and the fixes only if the user (or the scheduled task's prompt) asked for commits, one commit per repo,
    subject like `docs: knowledge-base audit`.
 

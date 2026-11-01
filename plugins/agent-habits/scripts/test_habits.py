@@ -125,6 +125,39 @@ def main():
         expect("ps positional target after flag named", code == 2 and "Lua/Captain.Lua" in out, True)
         expect("ps here-string commit passes", sh("git commit -m @'\nsubject\n'@", "PowerShell"), 0)
         expect("ps Out-File to temp passes", sh("@'\nx\n'@ | Out-File $env:TEMP/x.txt", "PowerShell"), 0)
+        # inline Python / sed -i writes (the librarian's runs of 2026-10-31 edited the docs this way)
+        code, out = run("pre-tool", {**s, "tool_name": "Bash", "tool_input": {"command":
+            "cd /d/proj; python - <<'E'\nimport io\np='docs/knowledge/PPLUS.md'\ns=io.open(p,encoding='utf-8').read()\n"
+            "io.open(p,'w',encoding='utf-8',newline='\\n').write(s.replace('a','b'))\nE"}}, proj)
+        expect("python heredoc rewriting a doc blocked", code == 2 and "docs/knowledge/PPLUS.md" in out, True)
+        expect("python -c open(..., 'a') blocked", sh("python -c \"open('src/x.py', 'a').write('y')\""), 2)
+        expect("python Path.write_text blocked",
+               sh("python3 - <<EOF\nfrom pathlib import Path\nPath('docs/a.md').write_text('x')\nEOF"), 2)
+        expect("python computed target with a doc path blocked",
+               sh("python - <<EOF\nd='docs'\nf=open(d+'/a.md','w')\nEOF"), 2)
+        expect("sed -i on .md blocked", sh("cd docs && sed -i '466s/p-anim-7/p-anim-8/' PITFALLS.md"), 2)
+        expect("python reading a doc passes", sh("python - <<'E'\nprint(open('docs/a.md').read()[:50])\nE"), 0)
+        expect("python open(..., 'rb') passes", sh("python -c \"open('a.pac', 'rb').read()\""), 0)
+        expect("python writing the scratchpad passes",
+               sh("python - <<E\nopen('C:/Users/u/AppData/Local/Temp/claude/s/scratchpad/o.txt','w').write('x')\nE"), 0)
+        expect("python writing a temp var passes",
+               sh("python - <<E\nout = '/tmp/r.csv'\nopen(out, 'w').write('x')\nE"), 0)
+        expect("python writing $S (scratchpad var) passes",
+               sh("S=C:/Users/u/AppData/Local/Temp/claude/s/scratchpad; python - <<E\nopen('$S/x.py','w')\nE"), 0)
+        expect("python after cd into the scratchpad passes",
+               sh("mkdir -p \"C:/Users/u/AppData/Local/Temp/claude/s/scratchpad/a\" && cd \"$_\" && python - <<E\n"
+                  "open('plan.py','w').write('x')\nE"), 0)
+        subprocess.run(["git", "init", "-q", str(proj)], check=True)
+        (proj / ".gitignore").write_text("out/\n")
+        expect("python writing a git-ignored out/ file passes",
+               sh("python - <<E\nopen('out/table.csv','w').write('x')\nE"), 0)
+        expect("python writing a tracked-area file in a repo blocked",
+               sh("python - <<E\nopen('src/new.py','w').write('x')\nE"), 2)
+        expect("python script from a file passes", sh("python -I tools/pac_dump.py --out out/Captain"), 0)
+        expect("sed -i on .lua passes (not markdown)", sh("sed -i 's/a/b/' src/x.lua"), 0)
+        expect("sed without -i on .md passes", sh("sed -n 1,20p docs/a.md"), 0)
+        expect("commit body naming open(..., 'w') passes",
+               sh("git commit -F - <<'EOF'\nfix: open(p, 'w') truncated docs/a.md\nEOF"), 0)
         # control-character guard (built in): NUL / form feed / invalid UTF-8 / mixed endings reported after an edit
         def edited(name, content):
             f = proj / "src" / name
@@ -195,9 +228,16 @@ def main():
         expect("sed -i on knowledge after a here-string blocked",
                sh("grep a <<< \"$x\"\nsed -i 's/a/b/' docs/knowledge/ENGINE.md"), 2)
         expect("source write after a here-string blocked", sh('cat <<< "$x"\ncat > src/x.py <<EOF\nx\nEOF'), 2)
-        code, out = run("pre-tool", {**s, "tool_name": "Bash", "agent_type": "agent-habits:librarian",
+        lib = {**s, "agent_type": "agent-habits:librarian"}
+        code, out = run("pre-tool", {**lib, "tool_name": "Bash",
                                      "tool_input": {"command": "sed -i 's/a/b/' docs/knowledge/ENGINE.md"}}, proj)
-        expect("librarian shell edit passes", code, 0)
+        expect("librarian sed -i on a doc blocked (Edit tool only)", code == 2 and "Inline write" in out, True)
+        code, out = run("pre-tool", {**lib, "tool_name": "Bash",
+                                     "tool_input": {"command": "git mv docs/knowledge/A.md docs/knowledge/B.md"}}, proj)
+        expect("librarian git mv in knowledge passes", code, 0)
+        code, out = run("pre-tool", {**lib, "tool_name": "Edit",
+                                     "tool_input": {"file_path": str(proj / "docs" / "knowledge" / "ENGINE.md")}}, proj)
+        expect("librarian Edit of knowledge passes", code, 0)
         run("post-tool", {**s, "tool_name": "WebSearch", "tool_input": {"query": "engine timing"}}, proj)
         code, out = run("stop", s, proj)
         expect("stop reminder points at the librarian", code == 2 and "librarian" in out, True)
@@ -254,6 +294,21 @@ def main():
         (proj / ".claude" / "habits.json").write_text("{ not json")
         expect("broken config exits 0", run("pre-tool", {**s, "tool_name": "Bash",
                                                         "tool_input": {"command": "deploy prod"}}, proj)[0], 0)
+
+    # kb_audit: rename guesses, entry parsing (the index's rows)
+    sys.path.insert(0, str(HABITS.parent))
+    import kb_audit
+    toks = {"SPEED", "SI_TIMER0", "WALK.animation", "WALK.ANIMS", "LEDGE_JUMP", "LEDGE_Y", "walk", "start"}
+    expect("rename: prefix dropped", kb_audit.rename_candidates("AD_SPEED", toks), ["SPEED"])
+    expect("rename: middle part dropped", kb_audit.rename_candidates("SI_AD_TIMER0", toks), ["SI_TIMER0"])
+    expect("rename: camelCase -> table field", kb_audit.rename_candidates("walkAnimation", toks), ["WALK.animation"])
+    expect("rename: constant -> table field", kb_audit.rename_candidates("WALK_ANIMS", toks), ["WALK.ANIMS"])
+    expect("rename: two candidates listed", kb_audit.rename_candidates("LEDGE_JUMP_Y", toks), ["LEDGE_JUMP", "LEDGE_Y"])
+    expect("rename: no one-word camel guess", kb_audit.rename_candidates("startRoll", toks), [])
+    doc = ('<a id="r2-x"></a>\n### Fact one\nText.\n- **Status:** Tested\n- **Used in:** `waveLand`, `SPEED`\n\n'
+           '## Plain heading\n- **Status:** Guess (needs a run)\n')
+    expect("index rows", kb_audit.entries(Path("ENGINE.md"), doc),
+           [(1, "r2-x", "Fact one", "Tested", ["waveLand", "SPEED"]), (7, "plain-heading", "Plain heading", "Guess", [])])
 
     print("all passed" if not fails else f"{len(fails)} failed")
     sys.exit(1 if fails else 0)

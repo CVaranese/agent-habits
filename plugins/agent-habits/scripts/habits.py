@@ -6,7 +6,8 @@ agent-habits hooks. One script, one subcommand per hook event; reads the hook JS
     prompt          UserPromptSubmit  context-size warning (to the user and Claude) at each `context_step` past
                                   `context_warn` tokens: every call re-reads the whole context
     pre-tool        PreToolUse    blocks commands matching the project's `block` rules; built-in guard: shell file
-                                  writes through heredocs / multi-line echo / Set-Content into non-temp paths are
+                                  writes through heredocs / multi-line echo / Set-Content, inline Python that opens a
+                                  file for writing and sed -i / perl -i on .md, into non-temp paths, are
                                   blocked (use Write/Edit); edits / shell writes to `knowledge_paths` are blocked
                                   unless the call comes from the librarian agent; `experiments` reminder (once per
                                   session) when a
@@ -59,6 +60,15 @@ PS_WRITER = re.compile(r"\b(Set-Content|Add-Content|Out-File)\b", re.I)
 PS_TARGET = re.compile(r"-(?:Path|LiteralPath|FilePath)\s+(" + _Q + r"|\S+)|WriteAll(?:Text|Lines|Bytes)\(\s*(" + _Q + r")",
                        re.I)
 PS_CMDLET_ARGS = re.compile(r"\b(?:Set-Content|Add-Content|Out-File)\b([^|;\n]*)", re.I)
+# inline Python (heredoc fed to `python -`, `python -c`) that opens a file for writing: read-modify-write scripts have
+# truncated and garbled files the Edit tool would have changed cleanly
+PY_RUN = re.compile(r"(?:^|[;&|(]|\n)\s*(?:\w+=\S*\s+)*(?:\S*[/\\])?(?:python[\d.]*|py)(?:\.exe)?\s", re.I)
+PY_OPEN_W = re.compile(r"\bopen\(\s*([^,()]+?)\s*,\s*(?:mode\s*=\s*)?(['\"])[rbt]*[wax+][^'\"]*\2")
+PY_WRITE_TEXT = re.compile(r"(?:Path\(\s*([^()]+?)\s*\)|\b(\w+))\.write_(?:text|bytes)\(")
+PY_PATH_LIT = re.compile(r"(['\"])([^'\"\n]*[/\\][^'\"\n]*\.\w{1,5}|[^'\"\n/\\ ]+\.(?:md|py|lua|json|txt|csv|cs|ini|ya?ml|toml))\1")
+# `sed -i` / `perl -i` on a markdown file: the Edit tool's job
+INPLACE_MD = re.compile(r"(?:^|[;&|(]|\n)\s*(?:sed|perl)\b[^\n;&|]*?\s-i\S*\s[^\n;&|]*?(['\"]?)([^\s'\";&|]+\.md)\1"
+                        r"(?=\s|$|[;&|])", re.I)
 
 # --- knowledge guard: only the librarian agent writes the paths in `knowledge_paths` ---------------------------------
 LIBRARIANS = {"agent-habits:librarian", "librarian"}   # plugin agent / a copy in .claude/agents
@@ -179,6 +189,90 @@ def shell_write_target(tool, cmd):
         arg, target = m.group(1), m.group(2)
         if ("\n" in arg or arg.count("\\n") >= 2) and source_targets([target]):
             return target
+    return None
+
+
+def py_value(expr, body):
+    """A file-name expression in inline Python as a string: a literal, or a name assigned a literal (`p = '...'`,
+    `p = Path('...')`) in the same script. None when it can't be told (f-string, joined, computed)."""
+    expr = expr.strip()
+    m = re.fullmatch(r"[rR]?(['\"])([^'\"]*)\1", expr)
+    if m:
+        return m.group(2)
+    if re.fullmatch(r"\w+", expr):
+        found = re.findall(r"(?:^|[;\n])\s*" + expr + r"\s*=\s*(?:Path\(\s*)?[rR]?(['\"])([^'\"\n]*)\1", body)
+        if found:
+            return found[-1][1]
+    return None
+
+
+def native_path(p):
+    """Git Bash `/d/x` -> `D:/x`, so Python and git.exe can use it."""
+    return re.sub(r"^/([a-zA-Z])/", lambda m: m.group(1).upper() + ":/", p) if os.name == "nt" else p
+
+
+def shell_context(cmd, cwd):
+    """(shell variables set in the command, the folder its last `cd` goes to): `S=<scratchpad>; python - ...` writing
+    `$S/x.py`, or `cd <scratchpad> && python - ...` writing `x.py`, is a temp write."""
+    words = without_bodies("Bash", cmd)
+    env = {k: v.strip("'\"") for k, v in re.findall(r"(?:^|[;&|\s])(\w+)=(" + _Q + r"|[^\s;&|]+)", words)}
+    expand = lambda t: re.sub(r"\$\{?(\w+)\}?", lambda m: env.get(m.group(1), m.group(0)), t)
+    base, in_temp = str(cwd), False   # the session's own folder is the project: only a `cd` named temp counts
+    for m in re.finditer(r"(?:mkdir\s+-p\s+(" + _Q + r"|[^\s;&|]+)[^\n;&|]*[;&|]+\s*)?\bcd\s+(" + _Q + r"|[^\s;&|]+)",
+                         words):
+        target = m.group(2).strip("'\"")
+        if target == "$_" and m.group(1):
+            target = m.group(1).strip("'\"")
+        target = native_path(expand(target))
+        absolute = os.path.isabs(target) or re.match(r"^[A-Za-z]:", target)
+        in_temp = (not source_targets([target])) or (in_temp and not absolute)
+        base = target if absolute else os.path.join(base, target)
+    return expand, base, in_temp
+
+
+def is_source_write(target, ctx):
+    """A write to a source file: not a temp path (after expanding the command's variables and its `cd`) and not
+    git-ignored (`out/`, build output)."""
+    expand, base, in_temp = ctx
+    t = native_path(expand(target.strip()))
+    absolute = os.path.isabs(t) or re.match(r"^[A-Za-z]:", t)
+    if not source_targets([t]) or (in_temp and not absolute):
+        return False
+    full = t if absolute else posix(os.path.join(base, t))
+    folder = Path(full).parent
+    while not folder.is_dir() and folder != folder.parent:   # git -C needs an existing folder
+        folder = folder.parent
+    try:   # 0 = ignored; 1 = not ignored; 128 = no repo there (a source write all the same)
+        r = subprocess.run(["git", "-C", str(folder), "check-ignore", "-q", full], capture_output=True, timeout=5)
+        return r.returncode != 0
+    except (OSError, subprocess.SubprocessError):
+        return True
+
+
+def inline_write_target(tool, cmd, cwd="."):
+    """The source file inline Python opens for writing, or a markdown file `sed -i` / `perl -i` edits, or None.
+    Scripts run from a file (`python tools/x.py`) aren't looked into; temp and git-ignored targets pass."""
+    if tool != "Bash" or not cmd:
+        return None
+    ctx = shell_context(cmd, cwd)
+    for m in INPLACE_MD.finditer(cmd):
+        if is_source_write(m.group(2), ctx):
+            return m.group(2)
+    if not PY_RUN.search(cmd):
+        return None
+    exprs = [m.group(1) for m in PY_OPEN_W.finditer(cmd)]
+    exprs += [m.group(1) or m.group(2) for m in PY_WRITE_TEXT.finditer(cmd)]
+    unknown = False
+    for e in exprs:
+        v = py_value(e, cmd)
+        if v is None:
+            unknown = True
+        elif is_source_write(v, ctx):
+            return v
+    if unknown:   # target computed: any source file path the script names is the likely target
+        for m in PY_PATH_LIT.finditer(cmd):
+            if is_source_write(m.group(2), ctx):
+                return m.group(2)
     return None
 
 
@@ -360,6 +454,12 @@ def pre_tool(data, cfg):
                   "damaged files before (NUL bytes, form feeds, CRLF/LF mixes, cp1252). Use the Write or Edit tool "
                   "for files; a heredoc that only feeds a program (git commit -F -, python -) still works. "
                   "Temp paths (tmp, temp, the scratchpad) are exempt.")
+        target = inline_write_target(tool, cmd, project_dir(data))
+        if target:
+            block(f"Inline write into {target} blocked: inline Python that rewrites a file, or sed -i / perl -i on a "
+                  "markdown file, has truncated and garbled files before. Use the Edit tool (Write for a new file). "
+                  "Scripts run from a file (python tools/x.py) and writes to temp paths (tmp, temp, the scratchpad) "
+                  "still work.")
     knowledge_guard(data, cfg, tool, inp)
     for rule in (cfg or {}).get("block", []):
         if tool not in rule.get("tools", ["Bash"]):

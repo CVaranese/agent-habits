@@ -2,6 +2,19 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-01 — inline-write guard, librarian index and use stats (v0.5.0)
+Source: a measurement of the librarian's first 1.5 days from the transcripts (18 runs, 9 sessions; 15 File, 3 Find).
+Find answers were good (entries, status, evidence; caught an entry title overstating its test) but cost 0.6-1.7M
+cache-read tokens each from wide greps, and nothing recorded whether they saved research. 14 of 18 runs edited the
+docs with `python - <<EOF` read-modify-write scripts or `sed -i`, which the shell-write guard let through on
+purpose ("a heredoc that only feeds a program"). Replaying 12,736 Bash commands from two projects' transcripts
+through the new check: 1,325 such inline edits (1,305 in main sessions), 15 of 15 sampled hits real; the false
+positives found on the way (scratchpad via `$S` or `cd`, git-ignored `out/`) are exempt and tested. Changes: the
+inline-write guard; librarian edits with the Edit tool only and refreshes an entry index that Find greps first;
+Find ends with `Result: hit / partial / miss`; `kb_audit.py` counts librarian runs, tokens and Find results from
+the transcripts and suggests renames for stale "Used in" names, which Audit may fix once confirmed (the 2026-10-31
+audit had 38 stale names and fixed none).
+
 ## 2026-10-31 — shell / file guards, experiment gate (v0.3.0)
 Source: a `/insights` report over 190 sessions (buggy code and wrong approach as top friction; heredoc / NUL /
 form-feed / CRLF file damage, runs launched on unverified assumptions or missing files). The prose rules existed in
