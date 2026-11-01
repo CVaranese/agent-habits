@@ -28,6 +28,10 @@ List every file the run needs (specs, savestates, builds, scripts, output folder
 ## 4. Cheapest disproving run
 The one shortest run that would show the main assumption wrong (one move, one frame window, one input). Run it
 first; read its output before planning the rest.
+**Setup check:** each trial prints the state it starts from (start position, distance to the nearest wall / ledge,
+facing, velocity or preset, stage / level loaded), the plan says what each should be, and you compare them before
+reading any result. A trial that started lifted, against a wall or on the wrong level measures the setup, not the
+thing under test; that has cost reruns before.
 
 ## 5. Run budget
 Number of runs and total minutes you will spend before reporting back, even without an answer. State the expected

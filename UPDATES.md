@@ -2,6 +2,13 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-01 — setup check in experiment-plan (v0.6.1)
+Source: one project's first tracker audit counted 6 reruns caused by the trial's setup rather than the thing under
+test (a trial that started lifted off the floor, one cut short by a wall, a stepping run that never advanced).
+Change: `skills/experiment-plan` section 4 gets a "setup check": each trial prints its starting state (position,
+wall / ledge distance, facing, velocity, level loaded), the plan states the expected values, and they are compared
+before any result is read. Text only; `test_habits.py` unchanged.
+
 ## 2026-11-01 — scheduler agent and tracker guard (v0.6.0)
 Source: the user's question whether ticket closes update the plan. In one project the last four closes all moved the
 ticket and its index row, but one (of four) left the ticket open in the plan: the closing steps never named the
