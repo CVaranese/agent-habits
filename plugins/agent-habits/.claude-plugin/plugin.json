@@ -1,8 +1,8 @@
 {
   "name": "agent-habits",
   "displayName": "Agent Habits",
-  "version": "0.6.1",
-  "description": "Personal working habits: evidence-first rules injected at session start, per-project reminder hooks (changelog, knowledge notes), blocked-command and on-edit checks, shell-write and control-character guards, experiment-plan gate, librarian and scheduler agents that own the knowledge base and the work queue, cheap lookup/triage agents, setup and update skills.",
+  "version": "0.7.0",
+  "description": "Personal working habits: evidence-first rules injected at session start, per-project reminder hooks (changelog, knowledge notes), blocked-command and on-edit checks, shell-write and control-character guards, experiment-plan gate, librarian and scheduler agents that own the knowledge base and the task tracker (file-based tasks, generated board, git hook templates), cheap lookup/triage agents, setup and update skills.",
   "author": { "name": "Chris Varanese" },
   "license": "MIT",
   "keywords": ["habits", "hooks", "workflow"]

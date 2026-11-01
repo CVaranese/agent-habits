@@ -2,6 +2,24 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-01 — admin part: tasks, generated board, hook templates (v0.7.0)
+Source: one project's process audit. Its task tracker (task files with Status / Needs you headers, a generated
+index / plan board / done list, a shared-index pre-commit guard, a commit-message hook) worked, but lived in that
+project, while the plugin's scheduler agent still wrote hand-kept index rows, a "needs first" column and
+strike-through in the plan, and the plugin's examples, test fixtures and binary-extension list named that project's
+formats. The user wants one practice for any project they or others delegate work from, with outside tracker
+links. Changes: `scripts/tasks.py` (config `tasks` in habits.json: dir, prefix, plan, index, done; plan and lanes
+optional; `**Links:**` shown in the index; `--check`), `templates/` (git hooks: shared-index guard + `precommit`
+commands, commit-msg; starter task README / PLAN / done list, Inbox, review queue), the scheduler rewritten to that
+format (Queue writes a task file + lane + runs tasks.py; Close appends Resolution, `git mv`, out of the lane, runs
+tasks.py; no index rows), `habits-setup` scaffolds it on request, `habits-update` refreshes copies whose version line
+is older, README "Admin" section, habits wording ("task", one place for each thing). Project leaks removed: binary
+extensions (now `guards.binary_ext`), test fixtures, experiment-plan and example config. Tested: `test_habits.py`
+(all pass, new: `binary_ext`, tasks.py on a template project with an open, a blocked and a closed task, a lane, no
+plan, a broken header); the source project's 20 open / 24 closed tasks give the same blocks as its own generator
+(except the example id in one prompt line); the hooks in a temp repo (whole-index commit blocked, pathspec passes,
+broken header / stale board block, bad subject blocked).
+
 ## 2026-11-01 — setup check in experiment-plan (v0.6.1)
 Source: one project's first tracker audit counted 6 reruns caused by the trial's setup rather than the thing under
 test (a trial that started lifted off the floor, one cut short by a wall, a stepping run that never advanced).
