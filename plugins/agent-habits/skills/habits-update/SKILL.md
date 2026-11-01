@@ -1,6 +1,6 @@
 ---
 name: habits-update
-description: Check what's new in Claude Code (changelog, docs, Anthropic engineering posts) and propose changes to the agent-habits plugin - new habits, hooks, agents, or habits made obsolete by new features. Use when the user asks "what's new", "any new Claude Code advice", "update my habits", or on a scheduled run.
+description: Check what's new in Claude Code (changelog, docs, Anthropic engineering posts) and propose changes to the agent-habits plugin - new habits, hooks, agents, or habits made obsolete by new features; in a project, refresh the tasks.py / git hooks copied from the plugin when its version changed. Use when the user asks "what's new", "any new Claude Code advice", "update my habits", or on a scheduled run.
 ---
 
 # Update agent-habits from the latest Claude Code changes
@@ -53,3 +53,16 @@ Write the new `state.json` (`last_checked` = today, newest changelog version rea
 - Interactive run (the user asked): show the list in the chat instead and apply only what they approve (edit the
   plugin, bump `version` in `.claude-plugin/plugin.json`, commit, push).
 - Commits and PRs: no Co-Authored-By trailer, no "Generated with Claude Code" line.
+
+## In a project: refresh the copied admin files
+Run this part (alone) when the user asks to update the plugin's files in a project, or at the start of an
+interactive run from a project that has them. `habits-setup` copies `scripts/tasks.py` and
+`templates/githooks/pre-commit` / `commit-msg` into the project; each copy names the plugin version it came from on
+its first lines (`# copied from agent-habits <version>`).
+1. Find the copies: `grep -rl "copied from agent-habits" tools .githooks` (and any path habits.json `precommit`
+   names). Compare each with its source under `${CLAUDE_PLUGIN_ROOT}`, ignoring that line (`diff <(sed 1,3d a)
+   <(sed 1,3d b)` or read both).
+2. Same: nothing to do. Different: show the user the version line and the diff, and whether the project changed
+   its copy (its `git log` on that file after the copy commit). Refresh only on their yes: `cp` the plugin's file,
+   set the version line with the Edit tool, run `python -I tools/tasks.py --check` and the hook on a sample
+   message; one commit per refresh (`habits: refresh tasks.py from agent-habits <version>`).

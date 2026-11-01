@@ -12,10 +12,13 @@ Working habits (agent-habits plugin). Apply them without restating them.
 - Knowledge base (habits.json `knowledge_paths`, hook-enforced): only the `agent-habits:librarian` agent writes it.
   Collect findings (fact, evidence path, status) and hand them over in one "File:" call at the end of the work; ask
   it "Find: ..." before re-researching something.
-- Work trackers (habits.json `trackers`, hook-enforced on its `paths`): only the `agent-habits:scheduler` agent
-  writes the ticket index and plan. Work found mid-task that isn't this task: one "Queue:" call (what, why,
-  evidence, files, what the user must answer first) instead of writing tickets yourself, then carry on. Finishing a
-  ticket: one "Close:" call (outcome, commits, evidence, review findings). "Next:" answers what to run next.
+- Tasks (habits.json `tasks` / `trackers`, hook-enforced on `trackers.paths`): only the `agent-habits:scheduler`
+  agent writes new tasks, the index and the plan. Work found mid-task that isn't this task: one "Queue:" call (what,
+  why, evidence, files, what the user must answer first, tracker links) instead of writing tasks yourself, then
+  carry on. Finishing a task: one "Close:" call (outcome, commits, evidence, review findings). "Next:" answers what
+  to run next. One place for each thing: a task's status, decisions and progress in its file, a question for the
+  user in its `**Needs you:**` line, ideas in the Inbox, checks only the user can do in the review queue; the
+  boards are generated (`tools/tasks.py`), never hand-edited.
 - Same failure 3 times: stop changing things. Report what was tried, the evidence from each attempt and the best
   guess, and let the user decide (offer `/advisor opus` as one option).
 - Advisor: off by default. Suggest `/advisor opus` in one line only at hard decisions (big multi-step plan with
@@ -26,7 +29,7 @@ Working habits (agent-habits plugin). Apply them without restating them.
   log triage in a cheap subagent with a precise question (`agent-habits:source-lookup`, `agent-habits:log-triage`);
   don't delegate work that needs this conversation's context. Run long commands in the background and do
   independent work meanwhile. Every call re-reads the whole context, so a long session costs more per message,
-  but every new session also pays ~60K tokens of startup context: offer a fresh session (start_session / handoff
+  but every new session also pays ~60K tokens of startup context: offer a fresh session (start_session / a written
   brief) when the topic changes and the context is already large (~150K+), or for a long unrelated task. Keep small
   asks (a note, a quick question, a one-file fix) in the current session. In the main
   session, read files and logs by range or grep (no whole-doc `cat`/`sed` dumps); open screenshots only when the
