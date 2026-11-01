@@ -1,0 +1,22 @@
+#!/bin/sh
+# copied from agent-habits <version> (plugins/agent-habits/templates/githooks/commit-msg); refresh with habits-update
+# Commit message format: "area: what changed", subject <= 72 chars, a blank line, then the why in the body.
+# Skip once with: git commit --no-verify
+msg="$1"
+subject=$(grep -v '^#' "$msg" | sed -n 1p)
+line2=$(grep -v '^#' "$msg" | sed -n 2p)
+case "$subject" in
+    Merge\ *|Revert\ *|fixup!*|squash!*|amend!*) exit 0 ;;
+esac
+fail=0
+len=$(printf '%s' "$subject" | wc -m)
+if [ "$len" -gt 72 ]; then
+    echo "commit-msg: subject is $len chars (max 72); move the details into the body"; fail=1
+fi
+if ! printf '%s' "$subject" | grep -Eq '^[a-z0-9][a-z0-9_./+-]*: [^ ]'; then
+    echo "commit-msg: subject must start with a lowercase area, e.g. \"docs: ...\", \"api: ...\", \"tools/build: ...\""; fail=1
+fi
+if [ -n "$line2" ]; then
+    echo "commit-msg: leave line 2 blank between the subject and the body"; fail=1
+fi
+[ $fail -eq 0 ] || { echo "subject: $subject"; exit 1; }

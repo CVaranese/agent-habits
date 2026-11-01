@@ -1,0 +1,43 @@
+#!/bin/sh
+# copied from agent-habits <version> (plugins/agent-habits/templates/githooks/pre-commit); refresh with habits-update
+# 1. Shared index: parallel sessions stage into one index, so commit with explicit paths: git commit -- <paths>.
+#    git runs this hook on a temporary next-index-*.lock for a pathspec commit, on index / index.lock for a plain,
+#    -a or -i commit. Passes: pathspec commits, merge conclusions, nothing staged (message-only --amend).
+#    A whole-index commit that is all yours, once: ALLOW_INDEX_COMMIT=1 git commit ...
+# 2. Runs each command in .claude/habits.json "precommit" (e.g. "python -I tools/tasks.py --check") from the repo
+#    root with CHECKS_COMMIT=1 set (a project's own check script may use it to skip slow parts on docs-only commits).
+#    A failure blocks the commit; lines starting with WARN are shown either way.
+# Skip once with: git commit --no-verify
+cd "$(git rev-parse --show-toplevel)" || exit 1
+case "$(basename "${GIT_INDEX_FILE:-index}")" in
+    next-index-*) ;;
+    *) if [ "$ALLOW_INDEX_COMMIT" != 1 ] && [ ! -f "$(git rev-parse --git-dir)/MERGE_HEAD" ] \
+          && ! git diff --cached --quiet; then
+           echo "pre-commit: this commit takes the whole shared index:"; git diff --cached --name-only | sed 's/^/  /'
+           echo "pre-commit: other sessions stage here too; commit with explicit paths: git commit -m ... -- <paths>"
+           echo "pre-commit: all yours? ALLOW_INDEX_COMMIT=1 git commit ... - commit blocked"; exit 1
+       fi ;;
+esac
+cmds=$(python -I -c '
+import json
+try:
+    print("\n".join(json.load(open(".claude/habits.json", encoding="utf-8")).get("precommit") or []))
+except OSError:
+    pass
+') || { echo "pre-commit: cannot read .claude/habits.json - commit blocked"; exit 1; }
+fail=0
+while IFS= read -r c; do
+    c=${c%"$(printf '\r')"}  # Python on Windows ends lines with CRLF
+    [ -n "$c" ] || continue
+    out=$(CHECKS_COMMIT=1 sh -c "$c" 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "$out" | grep -v '^PASS'
+        echo "pre-commit: $c failed - commit blocked"
+        fail=1
+    else
+        echo "$out" | grep '^WARN'
+    fi
+done <<EOF
+$cmds
+EOF
+exit $fail
