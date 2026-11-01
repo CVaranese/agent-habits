@@ -242,6 +242,23 @@ def main():
         code, out = run("pre-tool", {**lib, "tool_name": "Edit",
                                      "tool_input": {"file_path": str(proj / "docs" / "knowledge" / "ENGINE.md")}}, proj)
         expect("librarian Edit of knowledge passes", code, 0)
+        # tracker guard: only the scheduler agent writes trackers.paths (index, plan); ticket files stay open
+        cfg = json.loads((proj / ".claude" / "habits.json").read_text())
+        cfg["trackers"] = {"map": "docs/handoffs/README.md",
+                           "paths": [r"/docs/handoffs/README\.md$", r"/docs/handoffs/PLAN\.md$"]}
+        (proj / ".claude" / "habits.json").write_text(json.dumps(cfg))
+        plan = str(proj / "docs" / "handoffs" / "PLAN.md")
+        code, out = tool("Edit", {"file_path": plan})
+        expect("main-session plan edit blocked", code == 2 and "agent-habits:scheduler" in out, True)
+        expect("scheduler plan edit passes", tool("Edit", {"file_path": plan}, agent_id="a4",
+                                                  agent_type="agent-habits:scheduler")[0], 0)
+        expect("librarian plan edit blocked", tool("Edit", {"file_path": plan}, agent_id="a5",
+                                                   agent_type="agent-habits:librarian")[0], 2)
+        expect("scheduler knowledge edit blocked", tool("Edit", {"file_path": kb}, agent_id="a6",
+                                                        agent_type="agent-habits:scheduler")[0], 2)
+        expect("ticket progress edit passes",
+               tool("Edit", {"file_path": str(proj / "docs" / "handoffs" / "H-3-x.md")})[0], 0)
+        expect("shell append to the index blocked", sh("echo '| H-4 |' >> docs/handoffs/README.md"), 2)
         run("post-tool", {**s, "tool_name": "WebSearch", "tool_input": {"query": "engine timing"}}, proj)
         code, out = run("stop", s, proj)
         expect("stop reminder points at the librarian", code == 2 and "librarian" in out, True)

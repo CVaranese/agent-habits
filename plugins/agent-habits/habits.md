@@ -12,6 +12,10 @@ Working habits (agent-habits plugin). Apply them without restating them.
 - Knowledge base (habits.json `knowledge_paths`, hook-enforced): only the `agent-habits:librarian` agent writes it.
   Collect findings (fact, evidence path, status) and hand them over in one "File:" call at the end of the work; ask
   it "Find: ..." before re-researching something.
+- Work trackers (habits.json `trackers`, hook-enforced on its `paths`): only the `agent-habits:scheduler` agent
+  writes the ticket index and plan. Work found mid-task that isn't this task: one "Queue:" call (what, why,
+  evidence, files, what the user must answer first) instead of writing tickets yourself, then carry on. Finishing a
+  ticket: one "Close:" call (outcome, commits, evidence, review findings). "Next:" answers what to run next.
 - Same failure 3 times: stop changing things. Report what was tried, the evidence from each attempt and the best
   guess, and let the user decide (offer `/advisor opus` as one option).
 - Advisor: off by default. Suggest `/advisor opus` in one line only at hard decisions (big multi-step plan with

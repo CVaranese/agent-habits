@@ -31,7 +31,9 @@ skill when a launch comes before a plan), `guards` (shell_writes, control_chars;
 with a reason), `knowledge_paths` (path regexes only the `librarian` agent may write: knowledge notes, pitfalls,
 the auto-memory `/\.claude/projects/<project>/memory/`), `knowledge_map` (the doc(s) saying where each kind of fact
 goes and its entry shape), `knowledge_audit` (files, code_roots, repos, report: input of the `librarian-audit`
-skill; offer a weekly scheduled run), `to_librarian: true` on the knowledge reminder. Patterns are case-insensitive
+skill; offer a weekly scheduled run), `to_librarian: true` on the knowledge reminder, `trackers` (when the project
+keeps a queue of tickets / handoffs: map, paths only the `scheduler` agent writes (index and plan, not the ticket
+files), plan, done, lists, audit.report for the `scheduler-audit` skill; offer a weekly scheduled run). Patterns are case-insensitive
 regexes; paths use forward slashes. Keep triggers narrow: a reminder
 that fires on unrelated work trains everyone to ignore it.
 

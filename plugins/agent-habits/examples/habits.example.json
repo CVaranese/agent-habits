@@ -10,6 +10,15 @@
     "report": "docs/knowledge/AUDIT.md",
     "index": "docs/knowledge/INDEX.txt"
   },
+  "_comment_trackers": "trackers (optional): the work queue the scheduler agent (agent-habits:scheduler) keeps. map = the doc defining the ticket format, index and closing steps; paths = path regexes only the scheduler writes (index, plan; not the ticket files, whose progress notes the working session writes); plan, done = the plan file and the closed-tickets folder; lists = other trackers an item may already live in (checked for duplicates); audit = input of the scheduler-audit skill (report path).",
+  "trackers": {
+    "map": "docs/handoffs/README.md",
+    "paths": ["/docs/handoffs/README\\.md$", "/docs/handoffs/PLAN\\.md$", "/docs/handoffs/done/README\\.md$"],
+    "plan": "docs/handoffs/PLAN.md",
+    "done": "docs/handoffs/done/",
+    "lists": ["docs/BACKLOG.md", "docs/ROADMAP.md"],
+    "audit": { "report": "docs/handoffs/AUDIT.md" }
+  },
   "tokens": { "context_warn": 200000, "context_step": 100000, "big_output": 5000 },
   "guards": { "shell_writes": true, "control_chars": true },
   "experiments": {

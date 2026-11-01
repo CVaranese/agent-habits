@@ -9,7 +9,8 @@ agent-habits hooks. One script, one subcommand per hook event; reads the hook JS
                                   writes through heredocs / multi-line echo / Set-Content, inline Python that opens a
                                   file for writing and sed -i / perl -i on .md, into non-temp paths, are
                                   blocked (use Write/Edit); edits / shell writes to `knowledge_paths` are blocked
-                                  unless the call comes from the librarian agent; `experiments` reminder (once per
+                                  unless the call comes from the librarian agent, to `trackers.paths` unless from
+                                  the scheduler agent; `experiments` reminder (once per
                                   session) when a
                                   long-run command starts and no plan file was written this session
     post-tool       PostToolUse   runs `check` commands on edited files; built-in guard: control bytes (NUL, form
@@ -72,6 +73,7 @@ INPLACE_MD = re.compile(r"(?:^|[;&|(]|\n)\s*(?:sed|perl)\b[^\n;&|]*?\s-i\S*\s[^\
 
 # --- knowledge guard: only the librarian agent writes the paths in `knowledge_paths` ---------------------------------
 LIBRARIANS = {"agent-habits:librarian", "librarian"}   # plugin agent / a copy in .claude/agents
+SCHEDULERS = {"agent-habits:scheduler", "scheduler"}   # same rule for `trackers.paths`
 # shell commands that change the files they name: every path argument counts, except cp / Copy-Item (destination only)
 SHELL_CHANGERS = re.compile(r"^\s*(?:\w+=\S*\s+)*(?:sudo\s+)?(?:(sed|perl)\b(?=[^\n]*\s-i)"
                             r"|(mv|rm|git\s+(?:mv|rm|checkout|restore)|Remove-Item|Move-Item|Clear-Content)\b"
@@ -332,16 +334,26 @@ def knowledge_targets(data, tool, inp):
 
 
 def knowledge_guard(data, cfg, tool, inp):
-    """Block writes to the knowledge base (cfg["knowledge_paths"]) from anyone but the librarian agent."""
-    paths = (cfg or {}).get("knowledge_paths")
-    if not paths or data.get("agent_type") in LIBRARIANS:
-        return
-    hits = [t for t in knowledge_targets(data, tool, inp) if any_match(paths, t)]
-    if hits:
-        block(f"{hits[0]} is in the knowledge base (habits.json knowledge_paths), which only the librarian agent "
-              "writes. Collect the findings (fact, evidence path, status tested / researched / guess) and hand them "
-              "over in one call at the end of the work: Agent tool, subagent_type agent-habits:librarian, prompt "
-              "starting with \"File:\". It picks the entry, merges instead of duplicating and links both ways.")
+    """Block writes to the knowledge base (cfg["knowledge_paths"]) from anyone but the librarian agent, and to the
+    work trackers (cfg["trackers"]["paths"]) from anyone but the scheduler agent."""
+    cfg = cfg or {}
+    owned = [(cfg.get("knowledge_paths"), LIBRARIANS,
+              "is in the knowledge base (habits.json knowledge_paths), which only the librarian agent writes. Collect "
+              "the findings (fact, evidence path, status tested / researched / guess) and hand them over in one call "
+              "at the end of the work: Agent tool, subagent_type agent-habits:librarian, prompt starting with "
+              "\"File:\". It picks the entry, merges instead of duplicating and links both ways."),
+             ((cfg.get("trackers") or {}).get("paths"), SCHEDULERS,
+              "is a work tracker (habits.json trackers.paths: ticket index, plan), which only the scheduler agent "
+              "writes. Hand it over in one call: Agent tool, subagent_type agent-habits:scheduler, prompt starting "
+              "with \"Queue:\" (new work found: what, why, evidence, files, what the user must answer first) or "
+              "\"Close:\" (ticket id, outcome, commits per repo, evidence, review findings). The ticket file's own "
+              "Progress notes stay yours to write.")]
+    for paths, owners, why in owned:
+        if not paths or data.get("agent_type") in owners:
+            continue
+        hits = [t for t in knowledge_targets(data, tool, inp) if any_match(paths, t)]
+        if hits:
+            block(f"{hits[0]} {why}")
 
 
 def experiments_reminder(data, cfg, tool, cmd):

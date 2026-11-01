@@ -2,6 +2,16 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-01 — scheduler agent and tracker guard (v0.6.0)
+Source: the user's question whether ticket closes update the plan. In one project the last four closes all moved the
+ticket and its index row, but one (of four) left the ticket open in the plan: the closing steps never named the
+plan, so it was updated by habit. Most queued work there is found mid-task by the session doing other work, which
+then writes the ticket itself. Changes: `agents/scheduler.md` (Queue / Close / Next / Audit, from the project's
+map, like the librarian), `skills/scheduler-audit`, a `trackers` config whose `paths` only the scheduler writes
+(same hook as `knowledge_paths`; ticket files stay open for progress notes), a habits line, Hollis in the Estate
+style. Tested: `test_habits.py` (main-session plan edit blocked with a pointer to the scheduler, scheduler passes,
+librarian blocked on the plan and scheduler on knowledge, ticket file edit passes, shell append blocked).
+
 ## 2026-11-01 — per-agent use stats (v0.5.3)
 Source: the user asked whether the agents help, as step 1 of a retrospective that would later look for new agent
 opportunities and agents to retire. `kb_audit.py` counted only the librarian; `agent_stats.py` covers every agent
