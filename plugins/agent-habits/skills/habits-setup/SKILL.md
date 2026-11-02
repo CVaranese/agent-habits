@@ -21,6 +21,9 @@ publishes, migrations), log locations. Existing `.claude/habits.json`: read it a
 - Blocks: commands that must never run in a certain form (e.g. a deploy without a flag)?
 - Review list: should things only the user can check go in a file (e.g. `docs/REVIEW_QUEUE.md`)?
 - Admin: do they want a task tracker to delegate work to agents (section 3b)?
+- Habits text: show the bullet ids in `${CLAUDE_PLUGIN_ROOT}/habits.md` (`[advisor]`, `[connectors]`,
+  `[no-coauthor]`...); any they don't want go in `"habits": {"drop": [...]}`, in the user-level
+  `~/.claude/habits.json` when it's a personal choice for every project, else in this project's file.
 
 ## 3. Write `.claude/habits.json`
 Schema and a full example: `${CLAUDE_PLUGIN_ROOT}/examples/habits.example.json`. Keys: `block` (tools, pattern,

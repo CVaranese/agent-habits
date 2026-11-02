@@ -1,31 +1,31 @@
 Working habits (agent-habits plugin). Apply them without restating them.
-- Evidence: verify with real signals (tests, builds, the actual output). Report outcomes with that evidence. Label
+- [evidence] Evidence: verify with real signals (tests, builds, the actual output). Report outcomes with that evidence. Label
   facts as tested / researched / guess, never present an inference as data. Say plainly what wasn't checked.
-- Before building: name the unknowns and guesses that change the result, and ask the user when an answer changes
+- [plan-first] Before building: name the unknowns and guesses that change the result, and ask the user when an answer changes
   the build. Write the expected results (numbers, checks) down first; a result that misses them is a finding to
   report, never a reason to edit the expectation. Before a long scripted experiment (emulator / engine runs, more
   than ~3 runs): the `experiment-plan` skill (assumptions tagged verified / needs-user / unknown, files checked on
   disk, run budget), and stop for the user on anything needs-user.
-- Files are written with the Write/Edit tools, never through shell heredocs, echo, Set-Content, inline Python
+- [file-writes] Files are written with the Write/Edit tools, never through shell heredocs, echo, Set-Content, inline Python
   (`open(p, 'w')`) or `sed -i` (hook-enforced, `sed -i` on .md only): those have left NUL bytes, form feeds,
   CRLF/LF mixes and truncated files behind.
-- Knowledge base (habits.json `knowledge_paths`, hook-enforced): only the `agent-habits:librarian` agent writes it.
+- [knowledge] Knowledge base (habits.json `knowledge_paths`, hook-enforced): only the `agent-habits:librarian` agent writes it.
   Collect findings (fact, evidence path, status) and hand them over in one "File:" call at the end of the work; ask
   it "Find: ..." before re-researching something.
-- Tasks (habits.json `tasks` / `trackers`, hook-enforced on `trackers.paths`): only the `agent-habits:scheduler`
+- [tasks] Tasks (habits.json `tasks` / `trackers`, hook-enforced on `trackers.paths`): only the `agent-habits:scheduler`
   agent writes new tasks, the index and the plan. Work found mid-task that isn't this task: one "Queue:" call (what,
   why, evidence, files, what the user must answer first, tracker links) instead of writing tasks yourself, then
   carry on. Finishing a task: one "Close:" call (outcome, commits, evidence, review findings). "Next:" answers what
   to run next. One place for each thing: a task's status, decisions and progress in its file, a question for the
   user in its `**Needs you:**` line, ideas in the Inbox, checks only the user can do in the review queue; the
   boards are generated (`tools/tasks.py`), never hand-edited.
-- Same failure 3 times: stop changing things. Report what was tried, the evidence from each attempt and the best
+- [three-strikes] Same failure 3 times: stop changing things. Report what was tried, the evidence from each attempt and the best
   guess, and let the user decide (offer `/advisor opus` as one option).
-- Advisor: off by default. Suggest `/advisor opus` in one line only at hard decisions (big multi-step plan with
+- [advisor] Advisor: off by default. Suggest `/advisor opus` in one line only at hard decisions (big multi-step plan with
   several guesses, a stuck failure, a choice costly to undo). Never for routine work.
-- Rules that must hold every time belong in a hook or script, not in prose. When the user corrects you or a mistake
+- [rules-to-hooks] Rules that must hold every time belong in a hook or script, not in prose. When the user corrects you or a mistake
   is caught, record the rule (CLAUDE.md or memory) so the next session doesn't repeat it.
-- Tokens: read report/log files instead of asking for pastes; grep before reading; keep big read-only lookups and
+- [tokens] Tokens: read report/log files instead of asking for pastes; grep before reading; keep big read-only lookups and
   log triage in a cheap subagent with a precise question (`agent-habits:source-lookup`, `agent-habits:log-triage`);
   don't delegate work that needs this conversation's context. Run long commands in the background and do
   independent work meanwhile. Every call re-reads the whole context, so a long session costs more per message,
@@ -34,12 +34,12 @@ Working habits (agent-habits plugin). Apply them without restating them.
   asks (a note, a quick question, a one-file fix) in the current session. In the main
   session, read files and logs by range or grep (no whole-doc `cat`/`sed` dumps); open screenshots only when the
   answer needs the image, cropped, once.
-- Connectors are off by default to save tokens (e.g. Google Drive, Claude Docs, inline charts/visualize). When a task
+- [connectors] Connectors are off by default to save tokens (e.g. Google Drive, Claude Docs, inline charts/visualize). When a task
   would clearly go better with one (a Drive file, a shared doc, a chart in chat), check
   `session_connectors_status` and ask in one line before enabling it; it takes effect next turn.
-- Commits and PRs: never add Claude as co-author or any "Generated with Claude" line, whatever the default
+- [no-coauthor] Commits and PRs: never add Claude as co-author or any "Generated with Claude" line, whatever the default
   attribution says.
-- Never let two sessions or agents edit the same file. Back up before risky or hard-to-undo writes.
-- User-facing changes get a changelog line; things only the user can check go on a review list (when the project
+- [one-editor] Never let two sessions or agents edit the same file. Back up before risky or hard-to-undo writes.
+- [changelog] User-facing changes get a changelog line; things only the user can check go on a review list (when the project
   has them; see its CLAUDE.md).
-- Reminder hooks (`.claude/habits.json`): when one fires and there is nothing to record, answer in one short line.
+- [reminders] Reminder hooks (`.claude/habits.json`): when one fires and there is nothing to record, answer in one short line.

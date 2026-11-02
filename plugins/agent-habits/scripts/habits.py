@@ -2,7 +2,9 @@
 """
 agent-habits hooks. One script, one subcommand per hook event; reads the hook JSON on stdin.
 
-    session-start   SessionStart  prints habits.md (+ which project reminders are active) into the context
+    session-start   SessionStart  prints habits.md (+ which project reminders are active) into the context: bullets
+                                  for parts the project hasn't configured (knowledge, tasks, reminders) are left out,
+                                  `habits.drop` / `habits.extra` (user ~/.claude/habits.json + project) edit the rest
     prompt          UserPromptSubmit  context-size warning (to the user and Claude) at each `context_step` past
                                   `context_warn` tokens: every call re-reads the whole context
     pre-tool        PreToolUse    blocks commands matching the project's `block` rules; built-in guard: shell file
@@ -85,6 +87,7 @@ TEMP_TARGET = re.compile(r"(^|[/\\\"'=:])(tmp|temp|scratchpad?)([/\\\"']|$)|\$\{
                          r"|AppData[/\\]Local[/\\]Temp|^[\"']?(-|/dev/\w+|NUL)[\"']?$", re.I)
 CONTROL_RE = re.compile(rb"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")   # all but tab, LF, CR
 CONTROL_NAMES = {0: "NUL", 0x0B: "VT", 0x0C: "form feed", 0x1B: "ESC", 0x7F: "DEL"}
+HABIT_ID = re.compile(r"- \[([\w-]+)\] ")  # a habits.md bullet's id, for `habits.drop`
 
 
 def project_dir(data):
@@ -479,9 +482,45 @@ def big_output(data, cfg):
                                    "(agent-habits:source-lookup / log-triage) that returns only the answer.")
 
 
+def user_habits_config():
+    """The "habits" object of the user-level ~/.claude/habits.json ($CLAUDE_CONFIG_DIR/habits.json), or {}. A broken
+    file is skipped, so it can't cost the session its habits."""
+    p = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude") / "habits.json"
+    try:
+        return json.loads(p.read_text(encoding="utf-8")).get("habits") or {}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
+def habits_text(cfg):
+    """habits.md without the bullets this project can't use (no config for them) or the user dropped; `habits.drop`
+    from the user and project files add up, their `habits.extra` lines are appended."""
+    cfg = cfg or {}
+    sources = [user_habits_config(), cfg.get("habits") or {}]
+    drop = {i for s in sources for i in s.get("drop", [])}
+    needs = {"knowledge": bool(cfg.get("knowledge_paths")),
+             "tasks": bool(cfg.get("tasks") or (cfg.get("trackers") or {}).get("paths")),
+             "reminders": bool(cfg.get("reminders")),
+             "file-writes": guard_flags(cfg)["shell_writes"]}
+    lines, ids, keep = [], set(), True
+    for line in (ROOT / "habits.md").read_text(encoding="utf-8").strip().splitlines():
+        m = HABIT_ID.match(line)
+        if m:
+            ids.add(m.group(1))
+            keep = m.group(1) not in drop and needs.get(m.group(1), True)
+            line = "- " + line[m.end():]
+        if keep:
+            lines.append(line)
+    lines += [x for s in sources for x in s.get("extra", [])]
+    if drop - ids:
+        lines.append(f"(agent-habits: unknown habit id(s) in habits.drop: {', '.join(sorted(drop - ids))}; "
+                     f"known: {', '.join(sorted(ids))}. Tell the user.)")
+    return "\n".join(lines)
+
+
 def session_start(data):
-    print((ROOT / "habits.md").read_text(encoding="utf-8").strip())
     cfg = load_config(data)
+    print(habits_text(cfg))
     if cfg:
         names = [r.get("name", "?") for r in cfg.get("reminders", [])]
         if names:

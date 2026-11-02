@@ -13,8 +13,11 @@ from pathlib import Path
 HABITS = Path(__file__).resolve().parent / "habits.py"
 
 
+USER_DIR = Path(tempfile.mkdtemp())  # stands in for ~/.claude, so the real user habits.json doesn't leak in
+
+
 def run(event, data, project):
-    env = dict(os.environ, CLAUDE_PROJECT_DIR=str(project))
+    env = dict(os.environ, CLAUDE_PROJECT_DIR=str(project), CLAUDE_CONFIG_DIR=str(USER_DIR))
     r = subprocess.run([sys.executable, "-I", str(HABITS), event], input=json.dumps(data), text=True,
                        capture_output=True, env=env)
     return r.returncode, r.stdout + r.stderr
@@ -50,6 +53,23 @@ def main():
 
         code, out = run("session-start", s, proj)
         expect("session-start prints habits + reminders", code == 0 and "Project reminders active" in out, True)
+        expect("habit ids stripped", "[evidence]" not in out and "- Evidence:" in out, True)
+        expect("unconfigured knowledge / tasks bullets left out",
+               "librarian` agent writes" in out or "scheduler` agent" in out, False)
+        expect("configured reminders bullet kept", "Reminder hooks" in out, True)
+        (USER_DIR / "habits.json").write_text(json.dumps({"habits": {"drop": ["advisor", "nope"],
+                                                                     "extra": ["- Mine: tabs, not spaces."]}}))
+        out = run("session-start", s, proj)[1]
+        expect("user drop / extra applied", "Advisor:" not in out and "- Mine: tabs" in out, True)
+        expect("unknown drop id reported", "unknown habit id(s) in habits.drop: nope" in out, True)
+        (USER_DIR / "habits.json").write_text("{broken")
+        out = run("session-start", s, proj)[1]
+        expect("broken user habits.json ignored", "Advisor:" in out, True)
+        (USER_DIR / "habits.json").unlink()
+        bare = Path(tmp) / "bare"
+        bare.mkdir()
+        out = run("session-start", {**s, "cwd": str(bare)}, bare)[1]
+        expect("no config: no reminders bullet", "Reminder hooks" not in out and "- Evidence:" in out, True)
         expect("block deploy", run("pre-tool", {**s, "tool_name": "Bash", "tool_input": {"command": "deploy prod"}},
                                    proj)[0], 2)
         expect("allow deploy --dry-run", run("pre-tool", {**s, "tool_name": "Bash",
