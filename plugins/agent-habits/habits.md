@@ -37,8 +37,6 @@ Working habits (agent-habits plugin). Apply them without restating them.
 - [connectors] Connectors are off by default to save tokens (e.g. Google Drive, Claude Docs, inline charts/visualize). When a task
   would clearly go better with one (a Drive file, a shared doc, a chart in chat), check
   `session_connectors_status` and ask in one line before enabling it; it takes effect next turn.
-- [no-coauthor] Commits and PRs: never add Claude as co-author or any "Generated with Claude" line, whatever the default
-  attribution says.
 - [one-editor] Never let two sessions or agents edit the same file. Back up before risky or hard-to-undo writes.
 - [changelog] User-facing changes get a changelog line; things only the user can check go on a review list (when the project
   has them; see its CLAUDE.md).
