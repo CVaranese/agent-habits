@@ -525,6 +525,14 @@ def main():
             expect("hook: cherry-pick conflict commit passes the guard", git("commit", "--no-edit", ok=False)[0], 0)
             code, out = git("commit", "--allow-empty", "-m", "Bad subject", ok=False)
             expect("hook: commit-msg blocks a bad subject", code == 1 and "lowercase area" in out, True)
+
+    # a plain YAML value with ": " fails to parse and Claude Code drops the whole frontmatter (model, tools)
+    plugin = HABITS.parent.parent
+    for f in [*plugin.glob("agents/*.md"), *plugin.glob("skills/*/SKILL.md")]:
+        front = f.read_text(encoding="utf-8").split("---")[1]
+        bad = [k for k, _, v in (l.partition(": ") for l in front.splitlines() if ": " in l)
+               if ": " in v and not v.lstrip().startswith(("'", '"', "|", ">"))]
+        expect(f"frontmatter parses: {f.relative_to(plugin).as_posix()} {bad or ''}", bool(bad), False)
     print("all passed" if not fails else f"{len(fails)} failed")
     sys.exit(1 if fails else 0)
 

@@ -2,6 +2,14 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-02 — scheduler frontmatter parses again (v0.7.2)
+Source: subagent telemetry. 27 of 32 scheduler runs since 2026-11-01 ran on Opus although the agent says
+`model: sonnet`: its description held `"trackers": task files`, a `": "` that makes the YAML invalid, so Claude Code
+dropped the whole frontmatter (model, tools; the agent list showed "Agent from agent-habits plugin", all tools).
+Routine Close / Queue calls cost ~$0.55 each on Opus vs $0.18 for the one Sonnet run. Fix: `-` instead of `:`;
+`test_habits.py` now fails on a `": "` in any agent's or skill's plain frontmatter value (checked: fails on the old
+file, passes on the new).
+
 ## 2026-11-01 — admin part review fixes (v0.7.1)
 Source: review of v0.7.0. Fixes: pre-commit checks run with no stdin (one reading stdin swallowed the rest of the
 list), cherry-pick / revert conclusions pass the guard like merges, `precommit` may be a string, python found as
