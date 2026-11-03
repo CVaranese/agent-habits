@@ -3,7 +3,7 @@
 Per-agent use from the Claude Code transcripts: is each subagent type paying for itself?
 
     python -I agent_stats.py [--project <dir>] [--transcripts <dir> ...] [--all] [--since 2026-10-01]
-                             [--window 15] [--detail] [--json]
+                             [--window 15] [--detail] [--json] [--replies]
 
 Reads every subagent run (`<session>/subagents/*.meta.json` + its `.jsonl`) in the project's transcript folder
 (~/.claude/projects/<slug>; --transcripts for others, --all for every project), and per agent type reports:
@@ -12,6 +12,9 @@ tool calls, minutes, answer size, and the re-read signal: after the answer reach
 task notification), did the main session Read a file the agent had Read within its next --window tool calls? A
 re-read means the main session redid (part of) the agent's work, or didn't trust its answer. Only Read calls are
 compared (Grep / Bash reads aren't), so the count is a floor. --detail lists the re-read runs.
+
+--replies instead reports reply length: per main-session turn, who started it (the user, or an agent: subagent
+hand-back, task notification, another session) and the words in the turn's final reply.
 """
 
 import argparse
@@ -120,6 +123,48 @@ def main_calls(session_jsonl):
     return events
 
 
+def reply_turns(session_jsonl):
+    """The main session's turns: who started each (a human message, or an agent: subagent hand-back, task
+    notification, another session) and the words in its final reply (the last text before the next turn)."""
+    turns = []
+    for o in lines(session_jsonl):
+        if o.get("isSidechain"):
+            continue
+        t = o.get("type")
+        msg = o.get("message") or {}
+        if t == "user":
+            content = msg.get("content")
+            if isinstance(content, list) and any(isinstance(c, dict) and c.get("type") == "tool_result"
+                                                 for c in content):
+                continue
+            origin = (o.get("origin") or {}).get("kind")
+            text = text_of(content)
+            if "<task-notification>" in text:
+                origin = "task-notification"
+            elif not origin and (o.get("isMeta") or text.lstrip().startswith("<")):
+                continue   # system reminders and hook feedback continue the turn
+            turns.append({"start": o.get("timestamp", ""), "by": "user" if origin in (None, "human") else "agent",
+                          "reply": ""})
+        elif t == "assistant" and turns:
+            for c in msg.get("content") or []:
+                if isinstance(c, dict) and c.get("type") == "text" and c.get("text", "").strip():
+                    turns[-1]["reply"] = c["text"]
+    for tn in turns:
+        tn["words"] = len(tn.pop("reply").split())
+    return turns
+
+
+def reply_stats(dirs, since=""):
+    turns = [tn for d in dirs for s in sorted(d.glob("*.jsonl")) for tn in reply_turns(s)
+             if tn["start"][:10] >= since]
+    out = {"turns": len(turns), "agent_turns": sum(tn["by"] == "agent" for tn in turns)}
+    for by in ("user", "agent"):
+        w = sorted(tn["words"] for tn in turns if tn["by"] == by)
+        out[by] = {"turns": len(w), "words_median": statistics.median(w) if w else 0,
+                   "words_p90": w[int(0.9 * (len(w) - 1))] if w else 0, "over_200": sum(x > 200 for x in w)}
+    return out
+
+
 def minutes(a, b):
     from datetime import datetime
     try:
@@ -190,10 +235,25 @@ def main():
     ap.add_argument("--window", type=int, default=15, help="main-session tool calls checked for re-reads")
     ap.add_argument("--detail", action="store_true", help="list the runs whose files the main session re-read")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--replies", action="store_true",
+                    help="final-reply length per main-session turn, user-started vs agent-started")
     a = ap.parse_args()
     root = Path.home() / ".claude" / "projects"
     dirs = [p for p in root.iterdir() if p.is_dir()] if a.all else \
         [Path(d).expanduser() for d in a.transcripts] or [root / project_slug(Path(a.project))]
+    if a.replies:
+        st = reply_stats(dirs, a.since)
+        if a.json:
+            print(json.dumps(st, indent=1))
+            return 0
+        print(f"{st['turns']} main-session turns since {a.since or 'the start'}, {st['agent_turns']} started by an "
+              "agent (subagent hand-back, task notification, another session). Words in each turn's final reply:\n")
+        print("| Started by | Turns | Median words | 90th pct | Over 200 |")
+        print("|---|---|---|---|---|")
+        for by in ("user", "agent"):
+            r = st[by]
+            print(f"| {by} | {r['turns']} | {r['words_median']:.0f} | {r['words_p90']} | {r['over_200']} |")
+        return 0
     runs = collect(dirs, a.since, a.window)
     rows = summarize(runs)
     if a.json:

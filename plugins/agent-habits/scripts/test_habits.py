@@ -417,6 +417,19 @@ def main():
         expect("agent_stats: summary row", (row["runs"], row["background"], row["reread_runs"], row["runs_with_reads"]),
                (2, 1, 1, 2))
 
+        # replies: a human turn (hook feedback continues it, the last text is the reply), a notification turn
+        def said(text, origin=None, meta=None):
+            return {"type": "user", "timestamp": "2026-11-01T10:00:00Z", "isMeta": meta,
+                    "origin": origin and {"kind": origin}, "message": {"content": text}}
+        jl(Path(td) / "s2.jsonl", [
+            said("start H-1", "human"), asst({"type": "text", "text": "a b c"}),
+            said("Stop hook feedback: x", meta=True), asst({"type": "text", "text": "one two"}),
+            said("<task-notification>done</task-notification>", "task-notification"),
+            asst({"type": "text", "text": "ok"}), said("plain old message"),
+        ])
+        expect("agent_stats: reply turns", [(t["by"], t["words"]) for t in agent_stats.reply_turns(Path(td) / "s2.jsonl")],
+               [("user", 2), ("agent", 1), ("user", 0)])
+
     # tasks.py: a project from the templates with two open tasks (one blocked), a lane, one closed task
     plugin = HABITS.parent.parent
     with tempfile.TemporaryDirectory() as td:

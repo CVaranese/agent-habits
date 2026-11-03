@@ -2,6 +2,13 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-02 — reply-length telemetry (v0.10.1)
+Source: a user found the main session's replies too long and many turns driven by subagent reports rather than by
+them. `agent_stats.py --replies` counts, per main-session turn, who started it (a human message, or an agent:
+subagent hand-back, task notification, another session) and the words in the turn's final reply; it prints median,
+90th percentile and turns over 200 words for each. On the source project since 2026-11-01: 364 turns, 175
+agent-started; user turns median 119 words (p90 433), agent turns median 34 (p90 352). `test_habits.py` 1 new check.
+
 ## 2026-11-02 — review line on every close, verdict reminder (v0.10.0)
 Source: two prose rules that kept slipping on one project: "record the /code-review in the close" (of 17 closes in
 two days, 2 had no review line, and several said "no /code-review result was handed in") and "a verdict row per
