@@ -509,6 +509,64 @@ def main():
         expect("tasks.py: done list file from config", "[W-6]" in (tdir / "done" / "TASKS.md").read_text("utf-8"),
                True)
 
+    # telemetry: the receiver only starts when telemetry goes to localhost; bad bodies get a 400 and a marker line
+    tel = HABITS.parent / "telemetry"
+    probe = ("import sys; sys.path.insert(0, sys.argv[1]); import ensure_receiver as e; print([e.local_port(env) for "
+             "env in ({}, {'CLAUDE_CODE_ENABLE_TELEMETRY': '1', 'OTEL_EXPORTER_OTLP_ENDPOINT': 'http://127.0.0.1:4999'},"
+             " {'CLAUDE_CODE_ENABLE_TELEMETRY': '1', 'OTEL_EXPORTER_OTLP_ENDPOINT': 'https://otel.example.com'})])")
+    r = subprocess.run([sys.executable, "-I", "-c", probe, str(tel)], capture_output=True, text=True)
+    expect("telemetry: receiver only for a local endpoint", r.stdout.strip(), "[None, 4999, None]")
+    import socket
+    import urllib.error
+    import urllib.request
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    with tempfile.TemporaryDirectory() as td:
+        srv = subprocess.Popen([sys.executable, "-I", str(tel / "receiver.py"), "--port", str(port), "--out", td])
+        try:
+            def post(body):
+                req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/logs", data=body,
+                                             headers={"Content-Type": "application/json"})
+                try:
+                    return urllib.request.urlopen(req, timeout=2).status
+                except urllib.error.HTTPError as e:
+                    return e.code
+            for _ in range(50):
+                try:
+                    urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=0.2)
+                    break
+                except OSError:
+                    time.sleep(0.1)
+            codes = [post(b'{"resourceLogs": []}'), post(b"[1]"), post(b"{bad")]
+            lines = [ln for f in Path(td).glob("*/logs.jsonl") for ln in f.read_text("utf-8").splitlines()]
+            expect("telemetry: receiver answers object / array / broken", (codes, len(lines),
+                   sum('"_bad_body"' in ln for ln in lines)), ([200, 400, 400], 3, 2))
+        finally:
+            srv.kill()
+            srv.wait()
+
+    # check_test_logs.py: every tracked file in the configured log folders named in a tracked .md
+    if shutil.which("git"):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "logs").mkdir()
+            (root / ".claude").mkdir()
+            for name, text in (("logs/run1.txt", "x"), ("logs/run10.txt", "x"), ("TESTS.md", "run10 passed\n")):
+                (root / name).write_text(text, encoding="utf-8")
+
+            def check_logs():
+                subprocess.run(["git", "-C", td, "add", "-A"], capture_output=True)
+                r = subprocess.run([sys.executable, "-I", str(HABITS.parent / "check_test_logs.py"), "--project", td],
+                                   capture_output=True, text=True)
+                return r.returncode, r.stdout.split()
+            subprocess.run(["git", "init", "-q", td], capture_output=True)
+            expect("check_test_logs: no config passes", check_logs()[0], 0)
+            (root / ".claude" / "habits.json").write_text(json.dumps({"test_logs": {"dirs": ["logs"]}}))
+            expect("check_test_logs: run1 unnamed (run10 doesn't count)", check_logs(), (1, ["logs/run1.txt"]))
+            (root / "TESTS.md").write_text("run10 passed\nrun1.txt failed\n", encoding="utf-8")
+            expect("check_test_logs: all named", check_logs(), (0, []))
+
     # git hooks from templates/githooks in a temp repo (needs git and sh)
     if shutil.which("git"):
         with tempfile.TemporaryDirectory() as td:

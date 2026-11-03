@@ -45,7 +45,8 @@ A task tracker the user can delegate from. The default install is small: one fil
 list), a pre-commit hook running `tasks.py --check`, and the `scheduler` agent's Queue / Close / Next. Ask (one
 AskUserQuestion, each default off): plan lanes (parallel work; else no PLAN.md), an Inbox for not-yet-tasks, a
 review queue, "several agent sessions committing in one checkout?" (shared-index guard), "use the `area: what`
-commit subject format?" (commit-msg hook), a weekly audit; the id prefix (default `T-`) and the folder (default
+commit subject format?" (commit-msg hook), a weekly audit, a daily code review, test-log naming check, tool leases
+(see 3c); the id prefix (default `T-`) and the folder (default
 `docs/tasks`). Then, with `P=${CLAUDE_PLUGIN_ROOT}` and `V` = the `version` in `$P/.claude-plugin/plugin.json`:
 1. Copy `$P/scripts/tasks.py` to `tools/tasks.py`, `$P/templates/githooks/pre-commit` (and `commit-msg` if wanted)
    to `.githooks/`, `$P/templates/tasks/` to the task folder (skip `PLAN.md` without lanes), `$P/templates/INBOX.md`
@@ -67,6 +68,22 @@ commit subject format?" (commit-msg hook), a weekly audit; the id prefix (defaul
 4. CLAUDE.md: one paragraph: where tasks live, `Start T-<n>` to work one, new work goes through the scheduler
    (`Queue:` / `Close:` / `Next:`), "after cloning: `git config core.hooksPath .githooks`" (hooks are per clone),
    and with the guard: commit with explicit paths (`git commit -- <paths>`).
+
+## 3c. Optional admin extras (each only on the user's yes)
+- **Daily code review:** copy `$P/templates/reviews/README.md` to the reviews folder (default `docs/reviews/`) and
+  fill `<repos>` / `<reviews dir>`. Fill `$P/templates/reviews/daily-code-review.md` (the repos as absolute paths,
+  branch, reviews and tasks folders) and create a local scheduled task from it
+  (`mcp__scheduled-tasks__create_scheduled_task`, name `daily-code-review`, every day at an hour the user picks).
+  Add the reviews folder to `trackers.lists`.
+- **Test-log check** (projects that commit raw test logs): copy `$P/scripts/check_test_logs.py` to `tools/`, set
+  `"test_logs": {"dirs": [...], "doc_repos": [...]}` and add `<py> -I tools/check_test_logs.py` to `precommit`;
+  run it once (it must pass, or name the logs to document first).
+- **Tool leases** (several sessions sharing one editor, emulator or device): copy `$P/scripts/lease.py` and
+  `test_lease.py` to `tools/`; the project's launchers call `lease.acquire_or_exit("<resource>", ...)`. Run
+  `python -I tools/test_lease.py`.
+- **Telemetry** is per user, not per project: README "Telemetry". In a project, only `"telemetry": {"verdicts":
+  "<csv>", "projects": [...]}` if the defaults don't fit.
+Every copied script gets the `<version>` line set as in 3b step 1.
 
 Test each rule before finishing: pipe a sample hook JSON into
 `python -I "${CLAUDE_PLUGIN_ROOT}/scripts/habits.py" <pre-tool|post-tool|stop>` with `cwd` set to the project.

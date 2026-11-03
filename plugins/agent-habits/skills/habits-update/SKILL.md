@@ -56,8 +56,9 @@ Write the new `state.json` (`last_checked` = today, newest changelog version rea
 
 ## In a project: refresh the copied admin files
 Run this part (alone) when the user asks to update the plugin's files in a project, or at the start of an
-interactive run from a project that has them. `habits-setup` copies `scripts/tasks.py` and
-`templates/githooks/pre-commit` / `commit-msg` into the project; each copy names the plugin version it came from on
+interactive run from a project that has them. `habits-setup` copies `scripts/tasks.py` (and, when chosen,
+`check_test_logs.py`, `lease.py`, `test_lease.py`) and `templates/githooks/pre-commit` / `commit-msg` into the
+project; each copy names the plugin version it came from on
 its first lines (`# copied from agent-habits <version>`).
 1. Find the copies: `grep -rl "copied from agent-habits" tools .githooks` (and any path habits.json `precommit`
    names). Compare each with its source under `${CLAUDE_PLUGIN_ROOT}`, ignoring that line:

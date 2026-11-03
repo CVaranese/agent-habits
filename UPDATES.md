@@ -2,6 +2,16 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-02 — telemetry, leases, test-log check, daily review (v0.9.0)
+Source: the rest of the admin machinery one project had built for itself, moved here so any project gets it. Ported
+with project paths turned into config: `scripts/telemetry/` (OTLP receiver, started by the plugin's SessionStart hook
+only when telemetry is on and points at localhost; `analysis.py` reads `"telemetry"` from habits.json; data in
+`$AGENT_TELEMETRY_DIR` or `~/.claude/agent-telemetry`), `scripts/lease.py` + `test_lease.py` (shared-tool leases,
+now with a `ps` fallback off Windows), `scripts/check_test_logs.py` (`"test_logs"` config), `templates/reviews/`
+(daily code-review scheduled-task prompt + reviews README). habits-setup offers them (3c), habits-update refreshes
+the copies. Checked against the originals on that project: `analysis.py` gives an identical `agent_runs.csv` (126
+runs), `check_test_logs.py` the same 345/345; `test_lease.py` 9/9; `test_habits.py` 5 new checks, all pass.
+
 ## 2026-11-02 — task priorities and a queue in the plan (v0.8.2)
 Source: one project replaced its plan lanes with a single priority queue (one task at a time) and patched its copy of
 `tasks.py`; a habits-update refresh would have overwritten that. Ported: optional `**Priority:** P0-P3` header (once

@@ -21,6 +21,9 @@ If these habits are useful to you, a ⭐ on the repo helps others find them.
 | `skills/scheduler-audit` | Scheduled / on-demand tracker audit: runs the scheduler in Audit mode, spot-checks its counts, commits the report. |
 | `skills/librarian-audit` + `scripts/kb_audit.py` | Scheduled / on-demand audit (`"knowledge_audit"` in `habits.json`: `files`, `code_roots`, `repos`, `report`, optional `index`, `transcripts`): cited paths that moved or are gone, "Used in" names found in no code (with `renamed? X` guesses: a dropped part, or a camelCase / constant name turned table field), broken links / anchors, duplicate titles / anchors, commit hashes no repo resolves, memory `[[links]]` with no memory. Also the librarian's use from the transcripts (runs and tokens per mode, Find hit / partial / miss) and the entry index (one line per entry: `file#anchor L<line> [status] title \| used in`; `--index` rewrites only that, `--use` prints only the use). |
 | `scripts/agent_stats.py` | Per-agent use from the transcripts (`--project`, `--transcripts`, `--all`, `--since`): runs (background / foreground), models, tokens per run (fresh vs cache reads), tool calls, minutes, answer size, and **re-reads**: runs whose Read files the main session Read again within `--window` (15) tool calls of the answer, a sign it redid the work or didn't trust it (Read only, so a floor). `--detail` lists those runs. |
+| `scripts/telemetry/` | Subagent cost and verdicts (README "Telemetry"): `receiver.py` (local OTLP/JSON receiver), `ensure_receiver.py` (started by the SessionStart hook when telemetry points at localhost), `analysis.py` (per run: type, model, time, tools, tokens, report size, OTel cost, verdict). |
+| `scripts/lease.py`, `check_test_logs.py` | Admin extras copied into a project on request: leases on shared tools (one session at a time, owner / purpose / expiry, stale holders taken over; `test_lease.py`), and a check that every committed test log is named in a doc. |
+| `templates/reviews/` | Daily code review: the scheduled-task prompt (review yesterday's commits, write `<D>.md`, queue the open findings) and the reviews folder README. |
 | `skills/experiment-plan` | The plan written before a long scripted experiment: goal, assumptions tagged verified / needs-user / unknown, prerequisites checked on disk, the cheapest disproving run, run budget; stops for the user on anything `needs-user`. |
 | `agents/source-lookup.md` (Sonnet) | One factual question → values with sources and kinds (data / derived / secondary / guess). Keeps big reads out of the main session. |
 | `agents/log-triage.md` (Haiku) | Large logs → only errors, crashes and the requested lines. |
@@ -50,7 +53,19 @@ the scheduler's map and write-protected files follow from it):
 **Offered, default off:** `PLAN.md` lanes (parallel work, generated board), `INBOX.md` (not-yet-tasks),
 `REVIEW_QUEUE.md` (checks only the user can do), `"shared_index_guard": true` (the pre-commit also blocks
 whole-index commits, for several sessions committing in one checkout), `.githooks/commit-msg` (`area: what`,
-<= 72 chars), a weekly `scheduler-audit`. Hooks are per clone: `git config core.hooksPath .githooks` after cloning.
+<= 72 chars), a weekly `scheduler-audit`, a daily code review (scheduled task from `templates/reviews/`, findings
+queued to the scheduler), `tools/check_test_logs.py` (`"test_logs"`: every committed test log named in a doc),
+`tools/lease.py` (shared-tool leases). Hooks are per clone: `git config core.hooksPath .githooks` after cloning.
+
+## Telemetry
+Are the subagents worth it: per run cost (OTel) next to tokens, time and a hand-kept verdict. Per user, off by
+default. Turn it on in `~/.claude/settings.json` `"env"`: `CLAUDE_CODE_ENABLE_TELEMETRY=1`,
+`OTEL_METRICS_EXPORTER=otlp`, `OTEL_LOGS_EXPORTER=otlp`, `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`,
+`OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318`, optional `AGENT_TELEMETRY_DIR` (default
+`~/.claude/agent-telemetry`). The plugin's SessionStart hook then starts `scripts/telemetry/receiver.py` when
+nothing answers on that port. After checking a subagent's result, add `agent_id,verdict,note` to the project's
+verdicts CSV (`.claude/agent-verdicts.csv`, or `"telemetry": {"verdicts": ...}`); `python -I
+"<plugin>/scripts/telemetry/analysis.py" [--since <date>]` in the project prints the table.
 
 **Flow.** The user (or a session that found work) hands it to the scheduler agent: `Queue: ...` writes the task.
 `Start T-12` in a new session (or as a subagent's brief) works it; the session keeps the task's Status and Progress.
@@ -87,5 +102,7 @@ install is refused, ask whoever manages Claude Code there; don't work around it.
   not GitHub Releases).
 
 ## Test
-    python -I plugins/agent-habits/scripts/test_habits.py      (hooks, kb_audit, agent_stats, tasks.py)
+    python -I plugins/agent-habits/scripts/test_habits.py      (hooks, kb_audit, agent_stats, tasks.py, telemetry,
+                                                                 check_test_logs)
+    python -I plugins/agent-habits/scripts/test_lease.py
     claude plugin validate .
