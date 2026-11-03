@@ -471,6 +471,31 @@ def main():
         expect("tasks.py: bad Status value named", code == 1 and "Status 'done' is not open" in out, True)
         r = subprocess.run([sys.executable, "-I", str(HABITS.parent / "tasks.py"), "--project"], capture_output=True)
         expect("tasks.py: --project without a value", r.returncode, 2)
+        # Priority header + the plan's Order queue
+        (tdir / "W-1-login.md").write_text("# W-1: Login page\n\n**Status:** open\n**Priority:** P2\n", encoding="utf-8")
+        (tdir / "W-7-api.md").write_text("# W-7: API\n\n**Status:** open\n", encoding="utf-8")
+        code, out = tasks("--check")
+        expect("tasks.py: Priority on some tasks needs it on all", code == 1 and "W-7-api.md: no '**Priority:**" in out,
+               True)
+        (tdir / "W-7-api.md").write_text("# W-7: API\n\n**Status:** open\n**Priority:** P1 (soon)\n", encoding="utf-8")
+        (tdir / "W-2-search.md").write_text("# W-2: Search\n\n**Status:** open\n**Priority:** P2\n", encoding="utf-8")
+        plan = "# Plan\n\nOrder: W-2, W-1, W-3\n\n<!-- board: x -->\n<!-- /board -->\n"
+        (tdir / "PLAN.md").write_text(plan, encoding="utf-8")
+        code, out = tasks()
+        expect("tasks.py: Order naming a closed task reported", code == 1 and "Order: W-3 is closed" in out, True)
+        (tdir / "PLAN.md").write_text(plan.replace(", W-3", ""), encoding="utf-8")
+        code, out = tasks()
+        plan = (tdir / "PLAN.md").read_text(encoding="utf-8")
+        expect("tasks.py: queue by Priority, then Order",
+               (code, [plan.find(f"[W-{n}]") for n in (7, 2, 1)] == sorted(plan.find(f"[W-{n}]") for n in (7, 2, 1))),
+               (0, True))
+        expect("tasks.py: Priority column in the index", "| [W-7](W-7-api.md) | API | open | P1 |"
+               in (tdir / "README.md").read_text(encoding="utf-8"), True)
+        code, out = tasks("--next")
+        expect("tasks.py: --next lists the queue head", (code, "1. P1 W-7 API [open]" in out), (0, True))
+        (tdir / "W-7-api.md").unlink()
+        (tdir / "W-1-login.md").write_text("# W-1: Login page\n\n**Status:** open\n", encoding="utf-8")
+        (tdir / "W-2-search.md").write_text("# W-2: Search\n\n**Status:** open\n", encoding="utf-8")
         (tdir / "PLAN.md").unlink()
         (tdir / "W-1-login.md").write_text("# W-1: Login page\n\n**Status:** started\n", encoding="utf-8")
         expect("tasks.py: no plan file is fine", (tasks()[0], tasks("--check")[0]), (0, 0))

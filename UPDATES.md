@@ -2,6 +2,14 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-02 — task priorities and a queue in the plan (v0.8.2)
+Source: one project replaced its plan lanes with a single priority queue (one task at a time) and patched its copy of
+`tasks.py`; a habits-update refresh would have overwritten that. Ported: optional `**Priority:** P0-P3` header (once
+one open task has it, all need it; index column), the plan's `Order:` paragraph as an alternative to lanes (board
+sorts by Priority, then Order, then number; a closed or unknown id in it fails `--check`), and `--next` (what's next
+without a model). Scheduler: writes Priority when the board uses it, adds to / removes from `Order:`, Next mode starts
+from `--next`. `test_habits.py` covers all three.
+
 ## 2026-11-02 — scheduler frontmatter parses again (v0.7.2)
 Source: subagent telemetry. 27 of 32 scheduler runs since 2026-11-01 ran on Opus although the agent says
 `model: sonnet`: its description held `"trackers": task files`, a `": "` that makes the YAML invalid, so Claude Code

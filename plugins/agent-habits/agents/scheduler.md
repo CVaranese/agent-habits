@@ -45,13 +45,15 @@ For each item:
    (a step left, an unverified piece) is not yours: say so and return it.
 3. Task: next number = highest in `dir` and `done` + 1, never reused. File `<prefix><n>-<slug>.md` in `dir`:
    `# <prefix><n>: <title>`, then the headers `**Status:** open` (or `blocked (short note)`), `**Needs you:**
-   <question>` only when the user must answer first (required when blocked), `**Links:** [text](url), ...` only when
-   the caller gave links; then Goal, `## State when written (YYYY-MM-DD)` (today's date in exactly that heading
+   <question>` only when the user must answer first (required when blocked), `**Priority:** P0-P3` when the other
+   open tasks have one (the caller's priority, else ask back), `**Links:** [text](url), ...` only when the caller
+   gave links; then Goal, `## State when written (YYYY-MM-DD)` (today's date in exactly that heading
    shape: the index reads it; then `git log --oneline -1` per repo and the facts labelled tested / researched /
    guess as the caller gave them), Check first when there are commands to run, Steps, Done when, and any other
    section the map lists. Link evidence instead of copying it. An Inbox item it came from: delete that line.
-4. Plan lanes (only when the plan file has lane tables): add the id to the lane whose tasks touch the same files
-   (after the last one), else the lane the plan's intro rules give; no lane fits -> say so and leave it out.
+4. Plan order (only when the plan exists): with an `Order:` paragraph (a queue), add the id where the caller says,
+   else at the end; with lane tables, add it to the lane whose tasks touch the same files (after the last one),
+   else the lane the plan's intro rules give; no lane fits -> say so and leave it out.
 5. Run `python -I tools/tasks.py`; it must print no problems.
 Rules: one item, one home. Keep tasks short: what a cold session needs, not the story of the finding.
 
@@ -61,15 +63,15 @@ Input: task id, outcome (done / dropped / split into new work), the commits per 
 1. Append `## Resolution (YYYY-MM-DD)` to the task file: the outcome in its first line (the done list shows it),
    then commits, evidence links, review findings. Remove a leftover `**Needs you:**` line.
 2. `git mv` the file into `done` (same name) and fix its relative links (one level deeper).
-3. Take its id out of every plan lane (when the plan exists).
+3. Take its id out of the plan's `Order:` list and every plan lane (when the plan exists).
 4. Split-off work the caller names: Queue it in the same call.
 5. Run `python -I tools/tasks.py`; it must print no problems. Say which tasks this one unblocked.
 A step the caller's input can't fill (no review run, no evidence link): leave it out and list it as open; never
 make it up.
 
 ## Next mode (read-only)
-"What's next": read the plan's generated board (or, without a plan, the index): per lane the next open task and its
-state (Progress notes, steps left), blocked tasks and the question each waits on. Answer in a short table, then one
+"What's next": start from `python -I tools/tasks.py --next` (waiting on you, then the first 3 of the queue or each
+lane's first open task), then read those tasks' state (Progress notes, steps left). Answer in a short table, then one
 recommendation with the reason. Never edit in this mode.
 
 ## Audit mode
