@@ -8,6 +8,8 @@ them. `agent_stats.py --replies` counts, per main-session turn, who started it (
 subagent hand-back, task notification, another session) and the words in the turn's final reply; it prints median,
 90th percentile and turns over 200 words for each. On the source project since 2026-11-01: 364 turns, 175
 agent-started; user turns median 119 words (p90 433), agent turns median 34 (p90 352). `test_habits.py` 1 new check.
+Fix: `block` patterns and `unless` now match case-insensitively, as the setup docs always said (a `Set-Location`
+rule written in lower case let PowerShell commands through). 2 new checks.
 
 ## 2026-11-02 — review line on every close, verdict reminder (v0.10.0)
 Source: two prose rules that kept slipping on one project: "record the /code-review in the close" (of 17 closes in

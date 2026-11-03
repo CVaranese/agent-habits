@@ -74,6 +74,10 @@ def main():
                                    proj)[0], 2)
         expect("allow deploy --dry-run", run("pre-tool", {**s, "tool_name": "Bash",
                                                          "tool_input": {"command": "deploy --dry-run"}}, proj)[0], 0)
+        expect("block is case-insensitive", run("pre-tool", {**s, "tool_name": "Bash",
+                                                            "tool_input": {"command": "Deploy prod"}}, proj)[0], 2)
+        expect("unless is case-insensitive", run("pre-tool", {**s, "tool_name": "Bash",
+                                                             "tool_input": {"command": "deploy --DRY-RUN"}}, proj)[0], 0)
         expect("check fails on bad file", run("post-tool", {**s, "tool_name": "Write",
                                                            "tool_input": {"file_path": str(bad)}}, proj)[0], 2)
         expect("check passes on good file", run("post-tool", {**s, "tool_name": "Edit",

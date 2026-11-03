@@ -549,7 +549,7 @@ def pre_tool(data, cfg):
     for rule in (cfg or {}).get("block", []):
         if tool not in rule.get("tools", ["Bash"]):
             continue
-        if re.search(rule["pattern"], cmd) and not (rule.get("unless") and re.search(rule["unless"], cmd)):
+        if re.search(rule["pattern"], cmd, re.I) and not (rule.get("unless") and re.search(rule["unless"], cmd, re.I)):
             block(rule["message"])
     experiments_reminder(data, cfg, tool, cmd)
 
