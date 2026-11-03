@@ -46,7 +46,8 @@ the scheduler's map and write-protected files follow from it):
   first, Decisions, Progress; Resolution at close).
 - `docs/tasks/README.md` (how to start / write / answer / close, generated index), `docs/tasks/done/` (closed
   tasks and the generated done list).
-- `tools/tasks.py`: rewrites the generated blocks; `--check` fails on a stale block or a missing / wrong header.
+- `tools/tasks.py`: rewrites the generated blocks; `--check` fails on a stale block or a missing / wrong header,
+  and with `"review_since": "<date>"` on a close from that date without a `Review:` line in its Resolution.
 - `.githooks/pre-commit`: runs the `"precommit"` command(s) from `habits.json` (`tasks.py --check`).
 - The scheduler's Queue / Close / Next.
 
@@ -64,7 +65,8 @@ default. Turn it on in `~/.claude/settings.json` `"env"`: `CLAUDE_CODE_ENABLE_TE
 `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318`, optional `AGENT_TELEMETRY_DIR` (default
 `~/.claude/agent-telemetry`). The plugin's SessionStart hook then starts `scripts/telemetry/receiver.py` when
 nothing answers on that port. After checking a subagent's result, add `agent_id,verdict,note` to the project's
-verdicts CSV (`.claude/agent-verdicts.csv`, or `"telemetry": {"verdicts": ...}`); `python -I
+verdicts CSV (`.claude/agent-verdicts.csv`, or `"telemetry": {"verdicts": ...}`; with a `"telemetry"` config the
+Stop hook names this session's finished runs that have no row yet); `python -I
 "<plugin>/scripts/telemetry/analysis.py" [--since <date>]` in the project prints the table.
 
 **Flow.** The user (or a session that found work) hands it to the scheduler agent: `Queue: ...` writes the task.

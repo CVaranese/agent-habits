@@ -13,7 +13,9 @@ An open task (<dir>/<prefix><n>-<slug>.md, first line `# <prefix><n>: <title>`) 
     **Links:** [text](url), [text](url)              (optional: Jira / Rally / GitHub issues, outside docs)
 Its "Written" date comes from a `## State when written (YYYY-MM-DD)` heading, else "—".
 A closed task (<dir>/<done>/) ends with a `## Resolution` section: the date in its heading (else its first date) is
-the closed date (undated ones list last), its first line the summary.
+the closed date (undated ones list last), its first line the summary. With "review_since": "YYYY-MM-DD" in the
+config, a task closed on or after that date also needs a review line in its Resolution (`Review: <link / result>`
+or `Review findings: ...`; no review run = `Review: none (<why>)`), so every close records its code review.
 The plan orders the open tasks in one of two ways (both hand-kept):
 - a queue: a paragraph starting `Order:` (outside the board) listing task ids; the board sorts the open tasks by
   Priority, then by their place in that list, then by number (one task at a time, first = next to run);
@@ -25,8 +27,9 @@ plan's board (waiting on you, then the queue or each lane's open tasks in order)
 (<done>/<index>).
 
     python -I tools/tasks.py           rewrite the blocks
-    python -I tools/tasks.py --check   exit 1 if a block is stale, a task header is missing / wrong, or a plan
-                                       lane or Order list names a closed or unknown task
+    python -I tools/tasks.py --check   exit 1 if a block is stale, a task header is missing / wrong, a plan
+                                       lane or Order list names a closed or unknown task, or a close since
+                                       review_since has no review line
     python -I tools/tasks.py --next    print what's next (waiting on you, the first 3 of the queue or each lane's
                                        first task); writes nothing
     --project DIR                      the project root (default: the folder above this script holding
@@ -47,6 +50,9 @@ PRIORITIES = ("P0", "P1", "P2", "P3")
 ORDER = re.compile(r"^Order:(.*(?:\n(?!\s*\n).*)*)", re.M)
 DATE = re.compile(r"\b(20\d\d-\d\d-\d\d)\b")
 SUMMARY_LEN = 160
+# `Review: ...` / `- **Review findings:** ...` / `**Review** (/code-review on abc123): ...` at a line start, with
+# something after the colon (not the review queue)
+REVIEW_LINE = re.compile(r"^[\s\-*]*(?:\*\*)?(?:code[ -])?reviews?\b(?! ?queue)[^:\n]{0,60}:(?:\*\*)?\s*\S", re.M | re.I)
 
 
 def project_root(argv):
@@ -133,8 +139,10 @@ class Board:
             text = p.read_text(encoding="utf-8")
             title = self.title_re.search(text)
             closed, summary = resolution(text)
+            res = re.search(r"^## Resolution\b.*", text, re.M | re.S)
             out.append({"id": f"{self.prefix}{n}", "n": n, "file": p.name,
-                        "title": title.group(1) if title else p.stem, "closed": closed, "summary": summary})
+                        "title": title.group(1) if title else p.stem, "closed": closed, "summary": summary,
+                        "reviewed": bool(res and REVIEW_LINE.search(res.group(0)))})
         return sorted(out, key=lambda t: (t["closed"] != "—", t["closed"], t["n"]), reverse=True)
 
     def lanes(self, plan):
@@ -282,6 +290,11 @@ def main(argv):
             problems.append(f"{b.plan.name} Order: {i} is closed (in {b.done.name}/), take it out of the list")
         elif i not in open_ids:
             problems.append(f"{b.plan.name} Order: {i} is no task file")
+    since = config(root).get("review_since")
+    if since:
+        problems += [f"{b.done.name}/{c['file']}: closed {c['closed']} with no review line in its Resolution "
+                     f"(`Review: <link / result>`, or `Review: none (<why>)`)"
+                     for c in cs if c["closed"] != "—" and c["closed"] >= since and not c["reviewed"]]
     if "--next" in argv:
         print(next_view(b, ts, plan or ""))
         for p in problems:

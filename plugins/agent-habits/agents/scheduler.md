@@ -61,7 +61,9 @@ Rules: one item, one home. Keep tasks short: what a cold session needs, not the 
 Input: task id, outcome (done / dropped / split into new work), the commits per repo (first..last), the evidence
 (test log entries, reports, diffs), the review findings and what happened to each.
 1. Append `## Resolution (YYYY-MM-DD)` to the task file: the outcome in its first line (the done list shows it),
-   then commits, evidence links, review findings. Remove a leftover `**Needs you:**` line.
+   then commits, evidence links, and a `- Review: ...` line (the code review's result or link and what happened to
+   each finding; none run -> `- Review: none (<the caller's reason>)`; `tasks.py --check` fails a close without it
+   when the config sets `review_since`). Remove a leftover `**Needs you:**` line.
 2. `git mv` the file into `done` (same name) and fix its relative links (one level deeper).
 3. Take its id out of the plan's `Order:` list and every plan lane (when the plan exists).
 4. Split-off work the caller names: Queue it in the same call.

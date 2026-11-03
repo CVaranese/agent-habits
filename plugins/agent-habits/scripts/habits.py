@@ -20,7 +20,8 @@ agent-habits hooks. One script, one subcommand per hook event; reads the hook JS
                                   notes reminder triggers; flags tool outputs over `big_output` tokens (they are
                                   re-read on every later call)
     stop            Stop          one reminder per triggered rule whose docs weren't edited since
-                                  (once per session for rules with "once_per_session": true)
+                                  (once per session for rules with "once_per_session": true); with "telemetry":
+                                  names this session's finished subagent runs missing from the verdicts CSV (once each)
 
 Token limits and the shell/file guards work without a habits.json; its optional "tokens" / "guards" objects override
 TOKEN_DEFAULTS / GUARD_DEFAULTS.
@@ -37,6 +38,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -595,6 +597,38 @@ def post_tool(data, cfg):
                 block(f"{chk.get('message', 'Check failed')} ({' '.join(argv)}):\n{out}")
 
 
+def verdicts_due(data, cfg):
+    """With a "telemetry" config: this session's finished subagent runs that have no row in the verdicts CSV yet,
+    each named once per session (the main session checks the result, then records correct / partly / wrong)."""
+    if "telemetry" not in cfg or not data.get("transcript_path"):
+        return []
+    sub = Path(data["transcript_path"]).with_suffix("") / "subagents"
+    csv_path = cfg["_base"] / (cfg["telemetry"] or {}).get("verdicts", ".claude/agent-verdicts.csv")
+    try:
+        known = set(re.findall(r"^([\w-]+),", csv_path.read_text(encoding="utf-8"), re.M))
+    except OSError:
+        known = set()
+    runs = []
+    for meta in sorted(sub.glob("agent-*.meta.json")) if sub.is_dir() else ():
+        agent_id = meta.name[len("agent-"):-len(".meta.json")]
+        done = marker(data, "verdict." + agent_id)
+        log = meta.with_name(f"agent-{agent_id}.jsonl")
+        if agent_id in known or done.exists() or (log.exists() and time.time() - log.stat().st_mtime < 30):
+            continue   # recorded, already named, or probably still running (named at a later stop)
+        try:
+            info = json.loads(meta.read_text(encoding="utf-8"))
+        except ValueError:
+            info = {}
+        runs.append(f"{agent_id} ({info.get('agentType', '?')}: {str(info.get('description', ''))[:60]})")
+        MARKERS.mkdir(parents=True, exist_ok=True)
+        done.write_text("1", encoding="utf-8")
+    if not runs:
+        return []
+    return [f"Subagent runs with no verdict in {posix(csv_path.relative_to(cfg['_base']))} yet: {'; '.join(runs)}. "
+            "Check each result, then add `agent_id,correct|partly|wrong|unchecked,note` (`unchecked` when it can't be "
+            "checked)."]
+
+
 def stop(data, cfg):
     if data.get("stop_hook_active"):
         return  # already reminded once this turn
@@ -613,6 +647,7 @@ def stop(data, cfg):
             if r.get("once_per_session"):
                 done.write_text("1", encoding="utf-8")  # each blocked stop costs a full extra turn
         m.unlink()  # one reminder per batch of triggers
+    due += verdicts_due(data, cfg)
     if due:
         block("\n\n".join(due) + "\n\n(Nothing to record? Answer in one short line.)")
 

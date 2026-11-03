@@ -493,6 +493,18 @@ def main():
                in (tdir / "README.md").read_text(encoding="utf-8"), True)
         code, out = tasks("--next")
         expect("tasks.py: --next lists the queue head", (code, "1. P1 W-7 API [open]" in out), (0, True))
+        # review_since: a close from that date on needs a review line
+        (root / ".claude" / "habits.json").write_text(json.dumps({"tasks": {"dir": "work/tasks", "prefix": "W-",
+                                                                            "review_since": "2026-10-31"}}))
+        code, out = tasks("--check")
+        expect("tasks.py: close since review_since without a review line fails",
+               (code, "W-5-new.md: closed 2026-10-31 with no review" in out, "W-3" in out), (1, True, False))
+        (tdir / "done" / "W-5-new.md").write_text("# W-5: New\n\n## Resolution (2026-10-31)\nDone.\n"
+                                                  "- **Review** (/code-review on abc1234):\n  2 findings, fixed.\n",
+                                                  encoding="utf-8")
+        tasks()
+        expect("tasks.py: review line passes", tasks("--check")[0], 0)
+        (root / ".claude" / "habits.json").write_text(json.dumps({"tasks": {"dir": "work/tasks", "prefix": "W-"}}))
         (tdir / "W-7-api.md").unlink()
         (tdir / "W-1-login.md").write_text("# W-1: Login page\n\n**Status:** open\n", encoding="utf-8")
         (tdir / "W-2-search.md").write_text("# W-2: Search\n\n**Status:** open\n", encoding="utf-8")
@@ -545,6 +557,29 @@ def main():
         finally:
             srv.kill()
             srv.wait()
+
+    # stop: subagent runs with no verdict row are named once, only with a "telemetry" config
+    with tempfile.TemporaryDirectory() as td:
+        proj = Path(td) / "proj"
+        (proj / ".claude").mkdir(parents=True)
+        (proj / ".claude" / "habits.json").write_text(json.dumps({"telemetry": {"verdicts": "verdicts.csv"}}))
+        (proj / "verdicts.csv").write_text("agent_id,verdict,note\naaa,correct,ok\n", encoding="utf-8")
+        sub = Path(td) / "sess-v1" / "subagents"
+        sub.mkdir(parents=True)
+        for aid in ("aaa", "bbb", "ccc"):
+            (sub / f"agent-{aid}.meta.json").write_text(json.dumps({"agentType": "librarian", "description": "File"}))
+            (sub / f"agent-{aid}.jsonl").write_text("{}\n", encoding="utf-8")
+            if aid != "ccc":   # ccc: written just now = still running
+                os.utime(sub / f"agent-{aid}.jsonl", (time.time() - 120, time.time() - 120))
+        s = {"session_id": f"verdict-test-{os.getpid()}", "cwd": str(proj),
+             "transcript_path": str(Path(td) / "sess-v1.jsonl")}
+        code, out = run("stop", s, proj)
+        expect("stop: run without a verdict named, recorded / running ones not",
+               (code, "bbb (librarian" in out, "aaa" in out, "ccc" in out), (2, True, False, False))
+        expect("stop: each run named once", run("stop", s, proj)[0], 0)
+        (proj / ".claude" / "habits.json").write_text("{}")
+        expect("stop: no telemetry config, no verdict reminder", run("stop", {**s, "session_id": s["session_id"] + "b"},
+                                                                      proj)[0], 0)
 
     # check_test_logs.py: every tracked file in the configured log folders named in a tracked .md
     if shutil.which("git"):

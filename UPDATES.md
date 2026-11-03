@@ -2,6 +2,14 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-02 — review line on every close, verdict reminder (v0.10.0)
+Source: two prose rules that kept slipping on one project: "record the /code-review in the close" (of 17 closes in
+two days, 2 had no review line, and several said "no /code-review result was handed in") and "a verdict row per
+subagent run". Now checks: `tasks.py --check` with `tasks.review_since` fails a close from that date whose Resolution
+has no `Review:` / `Review findings:` line (`Review: none (<why>)` is fine; the scheduler writes it); the Stop hook,
+with a `"telemetry"` config, names this session's finished subagent runs missing from the verdicts CSV, once each
+(runs written to in the last 30 s count as still running). `test_habits.py` covers both (5 new checks).
+
 ## 2026-11-02 — telemetry, leases, test-log check, daily review (v0.9.0)
 Source: the rest of the admin machinery one project had built for itself, moved here so any project gets it. Ported
 with project paths turned into config: `scripts/telemetry/` (OTLP receiver, started by the plugin's SessionStart hook
