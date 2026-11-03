@@ -2,6 +2,13 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-02 — links follow a closed task into done/ (v0.10.2)
+Source: two closes in a row on one project moved the task file into `done/` but left links to its old path in other
+files (an audit, a closed task), caught only by that project's own link checker. Now the scheduler's Close greps for
+the file name and repoints those links, and `tasks.py --check` fails on a link to a task file that isn't there (task
+folder markdown and `trackers.lists` files), naming the new path. `test_habits.py` 2 new checks; no false alarms on
+two live trackers.
+
 ## 2026-11-02 — reply-length telemetry (v0.10.1)
 Source: a user found the main session's replies too long and many turns driven by subagent reports rather than by
 them. `agent_stats.py --replies` counts, per main-session turn, who started it (a human message, or an agent:

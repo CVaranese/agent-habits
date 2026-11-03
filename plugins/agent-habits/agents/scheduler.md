@@ -64,7 +64,10 @@ Input: task id, outcome (done / dropped / split into new work), the commits per 
    then commits, evidence links, and a `- Review: ...` line (the code review's result or link and what happened to
    each finding; none run -> `- Review: none (<the caller's reason>)`; `tasks.py --check` fails a close without it
    when the config sets `review_since`). Remove a leftover `**Needs you:**` line.
-2. `git mv` the file into `done` (same name) and fix its relative links (one level deeper).
+2. `git mv` the file into `done` (same name) and fix its relative links (one level deeper). Then the links *to* it:
+   `git grep -n <file name>` across the repo and repoint every link that used the old path (other task files,
+   done/ tasks, audits, lists). `tasks.py --check` names any it finds left in the task folder and the lists, with
+   the new path.
 3. Take its id out of the plan's `Order:` list and every plan lane (when the plan exists).
 4. Split-off work the caller names: Queue it in the same call.
 5. Run `python -I tools/tasks.py`; it must print no problems. Say which tasks this one unblocked.

@@ -28,8 +28,10 @@ plan's board (waiting on you, then the queue or each lane's open tasks in order)
 
     python -I tools/tasks.py           rewrite the blocks
     python -I tools/tasks.py --check   exit 1 if a block is stale, a task header is missing / wrong, a plan
-                                       lane or Order list names a closed or unknown task, or a close since
-                                       review_since has no review line
+                                       lane or Order list names a closed or unknown task, a close since
+                                       review_since has no review line, or a link to a task file is missing
+                                       (in the task folder's markdown and habits.json trackers.lists files;
+                                       a closed task moved into done/ and a link kept its old path)
     python -I tools/tasks.py --next    print what's next (waiting on you, the first 3 of the queue or each lane's
                                        first task); writes nothing
     --project DIR                      the project root (default: the folder above this script holding
@@ -49,6 +51,7 @@ STATES = ("open", "started", "blocked")
 PRIORITIES = ("P0", "P1", "P2", "P3")
 ORDER = re.compile(r"^Order:(.*(?:\n(?!\s*\n).*)*)", re.M)
 DATE = re.compile(r"\b(20\d\d-\d\d-\d\d)\b")
+LINK = re.compile(r"\]\(([^)\s]+)\)")
 SUMMARY_LEN = 160
 # `Review: ...` / `- **Review findings:** ...` / `**Review** (/code-review on abc123): ...` at a line start, with
 # something after the colon (not the review queue)
@@ -154,6 +157,24 @@ class Board:
             for first, ids in re.findall(r"^\| ?([^|]+?) ?\| ?([^|]*)\|", part, re.M):
                 if first.lower() != "lane" and not set(first) <= set("-: "):
                     out.append((first.strip(), self.id_re.findall(ids)))
+        return out
+
+    def broken_links(self, root, extra):
+        """Links to a task file that isn't there (a closed task moved into done/ and a link kept its old path), in
+        the task folder's markdown and the `extra` files (trackers.lists)."""
+        out = []
+        found = {p.name: p for _, p in self.files(self.dir) + self.files(self.done)}
+        for src in sorted({*self.dir.rglob("*.md"), *(root / e for e in extra)}):
+            if not src.is_file():
+                continue
+            for target in LINK.findall(src.read_text(encoding="utf-8")):
+                path = target.split("#")[0]
+                name = path.rsplit("/", 1)[-1]
+                if "://" in path or not self.file_re.match(name) or (src.parent / path).is_file():
+                    continue
+                hint = (f" (now {os.path.relpath(found[name], src.parent).replace(os.sep, '/')})"
+                        if name in found else "")
+                out.append(f"{src.relative_to(root).as_posix()}: link to {path} is missing{hint}")
         return out
 
     def order(self, plan):
@@ -316,6 +337,12 @@ def main(argv):
             stale.append(name)
             if not check:
                 path.write_text(new, encoding="utf-8", newline="\n")
+    try:   # after the rewrite, so a stale board's rows don't count
+        lists = (json.loads((root / ".claude" / "habits.json").read_text(encoding="utf-8")).get("trackers")
+                 or {}).get("lists") or []
+    except (OSError, ValueError):
+        lists = []
+    problems += b.broken_links(root, lists)
     for p in problems:
         print(p)
     if check and stale:

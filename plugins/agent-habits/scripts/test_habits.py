@@ -528,6 +528,22 @@ def main():
         (tdir / "PLAN.md").unlink()
         (tdir / "W-1-login.md").write_text("# W-1: Login page\n\n**Status:** started\n", encoding="utf-8")
         expect("tasks.py: no plan file is fine", (tasks()[0], tasks("--check")[0]), (0, 0))
+        # links to a task file that moved into done/: in the task folder and in a trackers.lists file
+        (tdir / "W-2-search.md").write_text("# W-2: Search\n\n**Status:** open\n**Links:** [W-3](W-3-setup.md), "
+                                            "[W-1](W-1-login.md#goal)\n", encoding="utf-8")
+        (root / "QUEUE.md").write_text("- see [W-5](work/tasks/W-5-new.md)\n", encoding="utf-8")
+        (root / ".claude" / "habits.json").write_text(json.dumps({"tasks": {"dir": "work/tasks", "prefix": "W-"},
+                                                                  "trackers": {"lists": ["QUEUE.md"]}}))
+        tasks()
+        code, out = tasks("--check")
+        expect("tasks.py: links to a moved task file fail, with the new path",
+               (code, "work/tasks/W-2-search.md: link to W-3-setup.md is missing (now done/W-3-setup.md)" in out,
+                "QUEUE.md: link to work/tasks/W-5-new.md is missing (now work/tasks/done/W-5-new.md)" in out,
+                "W-1-login" in out), (1, True, True, False))
+        (tdir / "W-2-search.md").write_text("# W-2: Search\n\n**Status:** open\n", encoding="utf-8")
+        (root / "QUEUE.md").write_text("- see [W-5](work/tasks/done/W-5-new.md)\n", encoding="utf-8")
+        tasks()
+        expect("tasks.py: fixed links pass", tasks("--check")[0], 0)
         # list file name from config: index (and the done list) named TASKS.md
         (root / ".claude" / "habits.json").write_text(json.dumps({"tasks": {"dir": "work/tasks", "prefix": "W-",
                                                                             "index": "TASKS.md"}}))
