@@ -480,6 +480,12 @@ def main():
                True)
         expect("tasks.py: done list newest first, undated last",
                [done.find(f"[W-{n}]") for n in (5, 3, 4)] == sorted(done.find(f"[W-{n}]") for n in (5, 3, 4)), True)
+        expect("tasks.py: --next lists the question", "Waiting on you:\n  W-2: which search API?\n" in tasks("--next")[1],
+               True)
+        blocked = (tdir / "W-2-search.md").read_text(encoding="utf-8")
+        (tdir / "W-2-search.md").write_text("# W-2: Search\n\n**Status:** open\n", encoding="utf-8")
+        expect("tasks.py: --next says nothing waits", "Waiting on you:\n  nothing\n" in tasks("--next")[1], True)
+        (tdir / "W-2-search.md").write_text(blocked, encoding="utf-8")
         (tdir / "W-1-login.md").write_text("# W-1: Login page\n\n**State:** open\n", encoding="utf-8")
         code, out = tasks("--check")
         expect("tasks.py: broken header fails --check", code == 1 and "W-1-login.md: no '**Status:**" in out, True)

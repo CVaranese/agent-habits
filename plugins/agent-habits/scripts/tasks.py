@@ -262,7 +262,7 @@ def next_view(b, ts, plan, n=3):
     """What's next, as plain text: the questions waiting on the user, then the first n of the queue (or each lane's
     first open task)."""
     by_id = {t["id"]: t for t in ts}
-    lines = ["Waiting on you:"] + [f"  {t['id']}: {t['needs']}" for t in ts if t["needs"]] or ["  nothing"]
+    lines = ["Waiting on you:"] + ([f"  {t['id']}: {t['needs']}" for t in ts if t["needs"]] or ["  nothing"])
     order = b.order(plan)
     if order is not None:
         lines.append("Next:")

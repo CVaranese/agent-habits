@@ -2,6 +2,10 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-03 — `tasks.py --next` says "nothing" when no question waits (v0.10.3)
+Source: a scheduled code review on one project. Operator precedence: the `or ["  nothing"]` bound to the whole list,
+which is never empty, so `--next` printed "Waiting on you:" with nothing under it. `test_habits.py` 2 new checks.
+
 ## 2026-11-02 — links follow a closed task into done/ (v0.10.2)
 Source: two closes in a row on one project moved the task file into `done/` but left links to its old path in other
 files (an audit, a closed task), caught only by that project's own link checker. Now the scheduler's Close greps for
