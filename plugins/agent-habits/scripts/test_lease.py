@@ -134,6 +134,48 @@ class LeaseTest(unittest.TestCase):
         held.set_pids([p.pid])   # the tool it started is already gone
         self.assertFalse((Path(self.tmp.name) / "res.json").exists())
 
+    def cli(self, *args, owner=None):
+        env = {k: v for k, v in self.env.items() if k not in ("CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_HOST_SESSION_ID")}
+        if owner:
+            env["CLAUDE_CODE_SESSION_ID"] = owner
+        return subprocess.run([sys.executable, "-I", str(TOOLS / "lease.py")] + list(args), env=env,
+                              capture_output=True, text=True)
+
+    def test_10_cli_release_only_your_own_without_force(self):
+        lease_file = Path(self.tmp.name) / "res.json"
+        self.assertEqual(self.cli("hold", "res").returncode, 0)   # the user's hold
+        self.assertNotEqual(self.cli("release", "res", owner="session-a").returncode, 0)   # a session can't drop it
+        self.assertTrue(lease_file.exists())
+        self.assertEqual(self.cli("release", "res", "--force", owner="session-a").returncode, 0)
+        self.assertFalse(lease_file.exists())
+        self.assertEqual(self.cli("hold", "res").returncode, 0)
+        self.assertEqual(self.cli("release", "res").returncode, 0)   # the user drops their own
+        self.assertFalse(lease_file.exists())
+        self.assertEqual(self.cli("hold", "res", "--owner", "session-a").returncode, 0)
+        self.assertEqual(self.cli("release", "res", owner="session-a").returncode, 0)   # a session drops its own
+        self.assertFalse(lease_file.exists())
+
+    def test_11_cli_release_of_stale_lease_keeps_a_new_holder(self):
+        """Checked stale, then another run takes it before the delete: the delete must miss the new holder's lease."""
+        old = lease.acquire("res", "old", 60, owner="old")
+        real_stale = lease.stale
+        taken = []
+
+        def stale_then_taken(info, now=None):
+            lease._write(dict(old.info, token="new-holder", owner="new"))
+            taken.append(True)
+            return True
+
+        lease.stale = stale_then_taken
+        argv = sys.argv
+        sys.argv = ["lease.py", "release", "res"]
+        try:
+            lease.main()
+        finally:
+            lease.stale, sys.argv = real_stale, argv
+        self.assertTrue(taken)
+        self.assertEqual(lease._read("res")["token"], "new-holder")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,7 +6,7 @@ an expiry, so parallel sessions queue instead of colliding.
 
     python -I tools/lease.py status                     who holds what
     python -I tools/lease.py hold editor --hours 2      take a tool by hand (the user; expiry only, no process)
-    python -I tools/lease.py release editor [--force]   give it back (--force: whoever holds it)
+    python -I tools/lease.py release editor [--force]   give it back: your own or a stale one (--force: whoever holds it)
 
 One JSON file per resource in %LOCALAPPDATA%\\tool-leases (else ~/tool-leases; TOOL_LEASE_DIR overrides): token,
 owner, purpose, the holder processes (pid + creation time, so a reused pid doesn't count), start and expiry. A lease
@@ -336,9 +336,10 @@ def main():
     elif a.cmd == "release":
         with _mutex(a.resource):
             info = _read(a.resource)
-        if info and not a.force and info.get("owner") != "user" and not stale(info):
+        if info and not a.force and info.get("owner") != default_owner() and not stale(info):
             sys.exit(f"{describe(info)}: not yours; --force to release it anyway")
-        print("released" if release(a.resource) else "not held")
+        # by token: a run that took the lease over since this check keeps it
+        print("released" if release(a.resource, None if a.force or not info else info["token"]) else "not held")
 
 
 if __name__ == "__main__":
