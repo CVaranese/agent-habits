@@ -27,7 +27,7 @@ publishes, migrations), log locations. Existing `.claude/habits.json`: read it a
 
 ## 3. Write `.claude/habits.json`
 Schema and a full example: `${CLAUDE_PLUGIN_ROOT}/examples/habits.example.json`. Keys: `block` (tools, pattern,
-unless, message), `check` (path regex, command argv with `{file}`, message), `reminders` (name, on_edit,
+unless, message, optional main_only: true = the rule skips subagent calls, for rules about main-session state), `check` (path regex, command argv with `{file}`, message), `reminders` (name, on_edit,
 on_command, on_read, on_url, on_search, docs, message, optional once_per_session: remind at most once per
 session, for rules that trigger on every turn of a research or test session), `experiments` (on_command = long-run
 launches, plan = path patterns of the plan / test-log files; one reminder per session to run the `experiment-plan`
@@ -37,7 +37,10 @@ the auto-memory `/\.claude/projects/<project>/memory/`), `knowledge_map` (the do
 goes and its entry shape), `knowledge_audit` (files, code_roots, repos, report: input of the `librarian-audit`
 skill; offer a weekly scheduled run), `to_librarian: true` on the knowledge reminder, `tasks` / `trackers` /
 `precommit` / `shared_index_guard` (the admin part, section 3b). Patterns are case-insensitive regexes; paths use forward slashes. Keep
-triggers narrow: a reminder that fires on unrelated work trains everyone to ignore it.
+triggers narrow: a reminder that fires on unrelated work trains everyone to ignore it. A block rule costs a round
+trip every time it fires, so use a setting when one does the job: for a session that works across several repos,
+`"env": {"CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "1"}` in the project's `.claude/settings.json` returns the
+shell to the start folder after every command, with no rule against `cd`.
 
 ## 3b. Admin (task tracker), only when the user wants it
 A task tracker the user can delegate from. The default install is small: one file per task (`**Status:**`, plus

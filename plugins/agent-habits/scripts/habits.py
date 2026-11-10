@@ -7,7 +7,8 @@ agent-habits hooks. One script, one subcommand per hook event; reads the hook JS
                                   `habits.drop` / `habits.extra` (user ~/.claude/habits.json + project) edit the rest
     prompt          UserPromptSubmit  context-size warning (to the user and Claude) at each `context_step` past
                                   `context_warn` tokens: every call re-reads the whole context
-    pre-tool        PreToolUse    blocks commands matching the project's `block` rules; built-in guard: shell file
+    pre-tool        PreToolUse    blocks commands matching the project's `block` rules (a rule with
+                                  "main_only": true skips subagent calls); built-in guard: shell file
                                   writes through heredocs / multi-line echo / Set-Content, inline Python that opens a
                                   file for writing and sed -i / perl -i on .md, into non-temp paths, are
                                   blocked (use Write/Edit); edits / shell writes to `knowledge_paths` are blocked
@@ -549,6 +550,8 @@ def pre_tool(data, cfg):
     for rule in (cfg or {}).get("block", []):
         if tool not in rule.get("tools", ["Bash"]):
             continue
+        if rule.get("main_only") and data.get("agent_id"):
+            continue  # e.g. a rule about the session's working folder: a subagent's cd doesn't carry over
         if re.search(rule["pattern"], cmd, re.I) and not (rule.get("unless") and re.search(rule["unless"], cmd, re.I)):
             block(rule["message"])
     experiments_reminder(data, cfg, tool, cmd)

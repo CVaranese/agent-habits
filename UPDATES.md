@@ -2,6 +2,15 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-10 — block rules can skip subagents (v0.10.5)
+Source: a block rule against a top-level `cd` into another repo (it moved the session's folder and broke file links)
+on one project. Counted from its transcripts over 8 days: 567 blocks, 285 of them in subagents, where a `cd` doesn't
+carry over to the next command (folder moved in 3 of 178 subagent runs before the rule, 142 of 198 main sessions).
+A rule with `"main_only": true` now skips calls that carry an `agent_id`. `test_habits.py` 3 new checks.
+For that rule itself the better fix was a setting: `CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR=1` in the project's
+settings `env` returns Bash and PowerShell to the start folder after each command (tested in a running session), so
+the rule was removed. The setup skill now says to prefer a setting over a block rule when one exists.
+
 ## 2026-11-03 — `tasks.py --next` says "nothing" when no question waits (v0.10.3)
 Source: a scheduled code review on one project. Operator precedence: the `or ["  nothing"]` bound to the whole list,
 which is never empty, so `--next` printed "Waiting on you:" with nothing under it. `test_habits.py` 2 new checks.

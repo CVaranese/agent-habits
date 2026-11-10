@@ -37,7 +37,8 @@ def main():
         (proj / "docs").mkdir()
         (proj / "docs" / "CHANGELOG.md").write_text("x")
         (proj / ".claude" / "habits.json").write_text(json.dumps({
-            "block": [{"tools": ["Bash"], "pattern": r"deploy\b", "unless": r"--dry-run", "message": "dry run first"}],
+            "block": [{"tools": ["Bash"], "pattern": r"deploy\b", "unless": r"--dry-run", "message": "dry run first"},
+                      {"tools": ["Bash"], "pattern": r"^cd\s+/elsewhere\b", "main_only": True, "message": "no cd"}],
             "check": [{"path": r"\.py$", "command": [sys.executable, "-m", "py_compile", "{file}"],
                        "message": "syntax"}],
             "reminders": [{"name": "changelog", "on_edit": [r"/src/"], "docs": ["docs/CHANGELOG.md"],
@@ -78,6 +79,11 @@ def main():
                                                             "tool_input": {"command": "Deploy prod"}}, proj)[0], 2)
         expect("unless is case-insensitive", run("pre-tool", {**s, "tool_name": "Bash",
                                                              "tool_input": {"command": "deploy --DRY-RUN"}}, proj)[0], 0)
+        cd = {**s, "tool_name": "Bash", "tool_input": {"command": "cd /elsewhere && ls"}}
+        expect("main_only rule blocks the main session", run("pre-tool", cd, proj)[0], 2)
+        expect("main_only rule skips a subagent", run("pre-tool", {**cd, "agent_id": "a0"}, proj)[0], 0)
+        expect("other rules still block a subagent", run("pre-tool", {**s, "tool_name": "Bash", "agent_id": "a0",
+                                                                     "tool_input": {"command": "deploy prod"}}, proj)[0], 2)
         expect("check fails on bad file", run("post-tool", {**s, "tool_name": "Write",
                                                            "tool_input": {"file_path": str(bad)}}, proj)[0], 2)
         expect("check passes on good file", run("post-tool", {**s, "tool_name": "Edit",
