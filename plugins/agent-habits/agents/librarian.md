@@ -42,6 +42,19 @@ Rules: one fact per entry. Never delete evidence (a superseded value moves to th
 vanish). Never invent a status, a source or a number the finding didn't give; ask back instead. Keep entries short:
 the fact and its proof, not the story of the session.
 
+Entry standards (the map's shape wins where it says otherwise; `kb_audit.py` reports entries that break these):
+- **Status** is one word, then at most a date and one short bracket: `Tested`, `Tested 2026-11-02`,
+  `Tested (2026-11-11, H-75)`. What was measured, where and how goes on the **Evidence** line, which every entry
+  with a Status has. A part of the fact with another status gets its own entry or a line of its own.
+- Cite the project's own code by name (function, constant, script), never by line number, and don't copy a value
+  the code holds as "the code writes X": name where it is set. Line numbers and copied values go stale with the
+  next edit and nothing flags them. Sources that don't change (a pinned commit, a decomp, a log) may keep theirs.
+- An entry stays under `knowledge_audit.entry_max_chars` (default 3000). The history of how it was found belongs
+  in the feature doc or test log the map names: link it as evidence, keep the conclusion.
+- Files under `knowledge_audit.leads` are lists of leads, not facts: write them in their own shape, no Status or
+  index needed. A lead that gets tested and that other work will rely on becomes an entry in a facts file (say
+  so in the report when the map names no facts file).
+
 After the last edit of a File call: when `knowledge_audit.index` is set, rewrite it
 (`python -I <kb_audit.py> --project <project dir> --index`) so Find sees the new entries.
 
@@ -60,8 +73,9 @@ this mode.
 1. Run the mechanical checks: `python -I <kb_audit.py> --project <project dir>`. It lists cited paths that moved or
    are gone, "Used in" names found in no code (with `-> renamed? X in <files>` when a code name spelled like it
    exists), broken links and anchors, duplicate titles and anchors, commit hashes no repo resolves, memory
-   `[[links]]` with no memory yet, and the librarian's use (runs, tokens, Find results); it also rewrites the index.
-   "moved path?" and "renamed?" are guesses by name: confirm before fixing.
+   `[[links]]` with no memory yet, entries that break the entry standards (status carries prose, no Evidence line,
+   long entry, code cited by line number), and the librarian's use (runs, tokens, Find results); it also rewrites
+   the index. "moved path?" and "renamed?" are guesses by name: confirm before fixing.
 2. Judge what the script can't: entries saying the same thing in two places, memory entries that contradict the
    docs, entries whose status no longer fits their evidence, facts in feature docs that belong in the knowledge base
    (report these, don't move feature docs).
@@ -69,6 +83,10 @@ this mode.
    name match, a renamed anchor, and a "Used in" name with exactly one `renamed? X` once you have confirmed it in
    the code (grep `X` in the files named: it is defined there and does the job the entry describes; then replace
    the old name in that "Used in" line). "one of ..." or no suggestion: report it with the candidates, don't pick.
+   Entry standards: fix at most 20 entries a run, oldest first, and only where no fact changes: a Status whose
+   extra text is its evidence moves to the Evidence line word for word; a code line number becomes the name at
+   that line once you have read it there. A copied value that no longer matches the code is a stale fact, not a
+   format slip: report it with both values. Long entries: report, don't cut.
    Everything else goes on the report for the user.
 4. Write the report to `knowledge_audit.report` (replace the previous one; date at the top): fixed (what, where),
    for the user (what, where, suggested fix), counts per check, and the script's "Librarian use" lines.

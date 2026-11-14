@@ -14,9 +14,14 @@ Reads <project>/.claude/habits.json "knowledge_audit":
                 Find mode greps it first instead of the whole base. Written on every audit run and by --index.
     transcripts optional: Claude Code project folders (~/.claude/projects/<slug>) whose librarian runs are counted;
                 default: the folders of the project and the code roots
+    leads       optional: files / folders (among `files`) that are lists of leads, not facts: their links, paths and
+                commits are still checked, but they stay out of the index and have no entry format
+    entry_max_chars  optional: an entry longer than this is reported (default 3000; 0 = no limit)
 Checks, per file: relative links to missing files or anchors, backticked paths that exist nowhere, "Used in" names
 found in no code root (with the code names they were probably renamed to), commit hashes no repo resolves, duplicate
-titles / anchors across files, and memory `[[name]]` links with no memory of that name. Then the librarian's use:
+titles / anchors across files, and memory `[[name]]` links with no memory of that name. Entry format, for every
+entry with a Status line: a Status that is more than one word with an optional date and short bracket, no Evidence
+line, an entry over the size limit, and the project's own code cited by line number. Then the librarian's use:
 runs per mode, tokens, and Find results (the `Result: hit | partial | miss` line Find answers end with). Prints a
 markdown list (or JSON); exit 0 even with findings.
 """
@@ -44,6 +49,15 @@ WIKILINK = re.compile(r"\[\[([^\]|#]+)")
 STATUS = re.compile(r"\*\*Status:?\*\*:?\s*([^\n.;(]+)", re.I)
 CODE_TOKEN = r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*"
 FIND_RESULT = re.compile(r"Result:\**\s*(hit|partial|miss)\b", re.I)
+STATUS_LINE = re.compile(r"\*\*Status:?\*\*:?\s*(.*)", re.I)
+# "Tested", "Tested 2026-11-02", "Tested (2026-11-11, H-75)": one word, an optional date, one short bracket
+STATUS_CLEAN = re.compile(r"^[A-Za-z][A-Za-z-]*(\s+\d{4}-\d\d-\d\d)?(\s*\([^()]{1,40}\))?\.?$")
+EVIDENCE = re.compile(r"\*\*Evidence\b", re.I)
+CODE_EXT = r"\.(?:py|lua|cs|js|ts|c|cc|cpp|h|rs|go|java|rb|sh|ps1)"
+# `convert.py:62`, `src/a.lua:10-14`, and `convert.py` (~L62, ...)
+LINE_CITE = re.compile(r"`([^`\n]*?" + CODE_EXT + r")(?::\d[\d,-]*`|`\s*\(~?L\d)", re.I)
+FORMAT_CHECKS = ("status carries prose", "no Evidence line", "long entry", "code cited by line number")
+LIST_CAP = 20   # format findings listed per check in the markdown output (--json lists all)
 
 
 def slug(title):
@@ -200,6 +214,45 @@ def entries(f, text):
     return [tuple(e) for e in out]
 
 
+def kb_files(project, ka):
+    """(files to check, the leads among them): the generated report and index are left out."""
+    generated = {resolve(project, ka[k]).resolve() for k in ("report", "index") if ka.get(k)}
+    files = [f for f in md_files(project, ka.get("files") or []) if f.resolve() not in generated]
+    leads = {f.resolve() for f in md_files(project, ka.get("leads") or [])}
+    return files, leads
+
+
+def format_findings(text, max_chars=3000, own_code=()):
+    """[(check, line, detail)] for every entry (heading of level 2+ up to the next one) that has a Status line."""
+    lines = text.splitlines()
+    heads = [i for i, l in enumerate(lines) if re.match(r"^#{2,6}\s+\S", l)]
+    out = []
+    for k, i in enumerate(heads):
+        end = heads[k + 1] if k + 1 < len(heads) else len(lines)
+        while end > i + 1 and (not lines[end - 1].strip() or ANCHOR_TAG.search(lines[end - 1])):
+            end -= 1   # the next entry's anchor tag and the blank lines before it
+        body = lines[i:end]
+        status = next((j for j, l in enumerate(body) if STATUS_LINE.search(l)), None)
+        if status is None:
+            continue
+        title = re.sub(r"^#+\s+", "", lines[i])[:60]
+        value = STATUS_LINE.search(body[status]).group(1).strip()
+        wraps = status + 1 < len(body) and re.match(r"\s+\S", body[status + 1]) \
+            and not re.match(r"\s*[-*+]\s", body[status + 1])
+        if not STATUS_CLEAN.match(value) or wraps:
+            out.append(("status carries prose", i + 1, f"{title}: {value[:50]}"))
+        if not any(EVIDENCE.search(l) for l in body):
+            out.append(("no Evidence line", i + 1, title))
+        size = sum(len(l) + 1 for l in body)
+        if max_chars and size > max_chars:
+            out.append(("long entry", i + 1, f"{title}: {size} chars"))
+        cited = sorted({m.group(1).replace("\\", "/").rsplit("/", 1)[-1] for l in body for m in LINE_CITE.finditer(l)})
+        cited = [c for c in cited if not own_code or c in own_code]
+        if cited:
+            out.append(("code cited by line number", i + 1, f"{title}: {', '.join(cited)}"))
+    return out
+
+
 def write_index(project, files, path):
     def rel(p):
         try:
@@ -236,8 +289,10 @@ def librarian_use(project, ka, roots, since=""):
             if not str(m.get("agentType", "")).endswith("librarian"):
                 continue
             mode, date, tokens, answer = "", "", 0, ""
-            for line in meta.with_name(meta.name.replace(".meta.json", ".jsonl")).open(encoding="utf-8",
-                                                                                     errors="replace"):
+            log = meta.with_name(meta.name.replace(".meta.json", ".jsonl"))
+            if not log.is_file():
+                continue   # a run whose transcript was never written or was cleaned up
+            for line in log.open(encoding="utf-8", errors="replace"):
                 try:
                     o = json.loads(line)
                 except ValueError:
@@ -288,10 +343,10 @@ def use_lines(u):
 def audit(project):
     cfg = json.loads((project / ".claude" / "habits.json").read_text(encoding="utf-8"))
     ka = cfg.get("knowledge_audit") or {}
-    generated = {resolve(project, ka[k]).resolve() for k in ("report", "index") if ka.get(k)}
-    files = [f for f in md_files(project, ka.get("files") or []) if f.resolve() not in generated]
+    files, leads = kb_files(project, ka)
     roots = [resolve(project, r) for r in ka.get("code_roots") or []]
     repos = [resolve(project, r) for r in ka.get("repos") or ["."]]
+    max_chars = ka.get("entry_max_chars", 3000)
     found = defaultdict(list)   # check -> [(file, line, detail)]
     titles, ids = defaultdict(list), defaultdict(list)
     skipped = defaultdict(int)
@@ -301,6 +356,9 @@ def audit(project):
 
     for f in files:
         text = f.read_text(encoding="utf-8", errors="replace")
+        if f.resolve() not in leads and f.parent.name != "memory":
+            for check, n, detail in format_findings(text, max_chars, tracked[0]):
+                found[check].append((f, n, detail))
         in_code = indented = False
         prev = ""
         for n, line in enumerate(text.splitlines(), 1):
@@ -357,8 +415,9 @@ def audit(project):
                     hash_ok[sha] = any(git_has(r, sha) for r in repos)
                 if not hash_ok[sha]:
                     found["unknown commit"].append((*where, sha))
-        for _, title in HEADING.findall(text):
-            titles[title.strip().lower()].append(f)
+        if f.resolve() not in leads:   # a lead may repeat a fact's title
+            for _, title in HEADING.findall(text):
+                titles[title.strip().lower()].append(f)
         for a in ANCHOR_TAG.findall(text):
             ids[a].append(f)
         if f.parent.name == "memory":
@@ -378,7 +437,7 @@ def audit(project):
     for a, fs in ids.items():
         if len(fs) > 1:
             found["duplicate anchor"].append((fs[0], 0, f"{a} x{len(fs)}"))
-    return files, found, skipped
+    return [f for f in files if f.resolve() not in leads], found, skipped
 
 
 def main():
@@ -398,8 +457,8 @@ def main():
             if not index:
                 print("kb_audit: no knowledge_audit.index in habits.json")
                 return 1
-            generated = {resolve(project, ka[k]).resolve() for k in ("report", "index") if ka.get(k)}
-            files = [f for f in md_files(project, ka.get("files") or []) if f.resolve() not in generated]
+            files, leads = kb_files(project, ka)
+            files = [f for f in files if f.resolve() not in leads]
             print(f"kb_audit: index {index} ({write_index(project, files, index)} entries)")
         if a.use:
             print("\n".join(use_lines(librarian_use(project, ka, roots, a.since))))
@@ -422,8 +481,11 @@ def main():
           + (f"; index rewritten ({n_index} entries)" if index else ""))
     for k, v in found.items():
         print(f"\n## {k} ({len(v)})")
-        for f, n, d in v:
+        shown = v[:LIST_CAP] if k in FORMAT_CHECKS else v
+        for f, n, d in shown:
             print(f"- {rel(f)}{':' + str(n) if n else ''}: `{d}`")
+        if len(shown) < len(v):
+            print(f"- ... and {len(v) - len(shown)} more (--json lists all)")
     print("\n## Librarian use\n" + "\n".join(f"- {x}" for x in use_lines(use)))
 
 

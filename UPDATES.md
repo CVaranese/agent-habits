@@ -2,6 +2,22 @@
 
 (Routine bookkeeping — last check, changelog version, docs pages seen — lives in state.json on the `habits-state` branch.)
 
+## 2026-11-13 — entry standards, leads files, audit-due line (v0.10.6)
+Source: a spot-check of 12 random entries in one project's knowledge base (474 entries). No invented facts; 2 of 12
+were out of date against the code: one said a script "writes 1.6 at lines 62 and 1180" (those lines now write
+1.3671), one named functions that were renamed. Also found: 382 Status lines carrying their evidence as prose, 44
+entries over 3000 characters, and the last audit report two weeks old because `kb_audit.py` crashed on a librarian
+run whose transcript file was missing.
+- `kb_audit.py` reports entries that break the standards: status carries prose, no Evidence line, long entry
+  (`entry_max_chars`, default 3000), code cited by line number (only files tracked in the code roots). The markdown
+  output lists 20 per check; `--json` lists all.
+- `knowledge_audit.leads`: files that list leads rather than facts. Links, paths and commits still checked; no
+  index rows, no entry format.
+- Session start prints one line when `knowledge_audit.report` is older than `every_days` (default 7, 0 = never).
+- The librarian's File rules state the standards; Audit may fix up to 20 format slips a run where no fact changes.
+- Fixed: `kb_audit.py` no longer stops on a run with a `.meta.json` and no `.jsonl`.
+`test_habits.py` 8 new checks. On the source project the line-number check found the stale entry by itself.
+
 ## 2026-11-10 — block rules can skip subagents (v0.10.5)
 Source: a block rule against a top-level `cd` into another repo (it moved the session's folder and broke file links)
 on one project. Counted from its transcripts over 8 days: 567 blocks, 285 of them in subagents, where a `cd` doesn't

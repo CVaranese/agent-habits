@@ -528,6 +528,24 @@ def session_start(data):
         names = [r.get("name", "?") for r in cfg.get("reminders", [])]
         if names:
             print(f"Project reminders active (.claude/habits.json): {', '.join(names)}.")
+        due = audit_due(cfg, project_dir(data))
+        if due:
+            print(due)
+
+
+def audit_due(cfg, project):
+    """One line when the knowledge audit's report is older than knowledge_audit.every_days (default 7; 0 = never)."""
+    ka = cfg.get("knowledge_audit") or {}
+    days = ka.get("every_days", 7)
+    if not ka.get("report") or not days:
+        return ""
+    p = Path(os.path.expandvars(os.path.expanduser(ka["report"])))
+    p = p if p.is_absolute() else Path(project) / p
+    age = int((time.time() - p.stat().st_mtime) / 86400) if p.exists() else None
+    if age is not None and age < days:
+        return ""
+    return ("Knowledge audit: " + (f"the last report is {age} days old" if age is not None else "no report yet")
+            + f" ({p.as_posix()}). Offer the user the librarian-audit skill in one line; don't run it unasked.")
 
 
 def pre_tool(data, cfg):

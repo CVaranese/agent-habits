@@ -35,7 +35,8 @@ skill when a launch comes before a plan), `guards` (shell_writes, control_chars;
 with a reason), `knowledge_paths` (path regexes only the `librarian` agent may write: knowledge notes, pitfalls,
 the auto-memory `/\.claude/projects/<project>/memory/`), `knowledge_map` (the doc(s) saying where each kind of fact
 goes and its entry shape), `knowledge_audit` (files, code_roots, repos, report: input of the `librarian-audit`
-skill; offer a weekly scheduled run), `to_librarian: true` on the knowledge reminder, `tasks` / `trackers` /
+skill; offer a weekly scheduled run; `leads` for files that list leads or ideas rather than facts, so they stay out
+of the index and the entry-format checks; session start says when the report is over `every_days` old), `to_librarian: true` on the knowledge reminder, `tasks` / `trackers` /
 `precommit` / `shared_index_guard` (the admin part, section 3b). Patterns are case-insensitive regexes; paths use forward slashes. Keep
 triggers narrow: a reminder that fires on unrelated work trains everyone to ignore it. A block rule costs a round
 trip every time it fires, so use a setting when one does the job: for a session that works across several repos,

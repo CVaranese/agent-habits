@@ -376,6 +376,48 @@ def main():
            '## Plain heading\n- **Status:** Guess (needs a run)\n')
     expect("index rows", kb_audit.entries(Path("ENGINE.md"), doc),
            [(1, "r2-x", "Fact one", "Tested", ["waveLand", "SPEED"]), (7, "plain-heading", "Plain heading", "Guess", [])])
+    # entry standards: clean statuses pass; prose, a missing Evidence line, size and code line numbers are reported
+    std = ('<a id="a"></a>\n### Clean\nFact.\n- **Status:** Tested (2026-11-11, H-75)\n- **Evidence:** `logs/run1.txt`, '
+           '`Notes.asm:281`\n- **Used in:** `build.py`\n\n<a id="b"></a>\n### Dated\n- **Status:** Researched 2026-11-02\n'
+           '- **Evidence:** decomp\n\n<a id="c"></a>\n### Prose\n- **Status:** Tested (net probe, 3000 frames offline, '
+           '2026-10-12: 2978 consecutive, 21 gaps).\n\n### Wrapped\n- **Status:** Tested\n  in two runs\n'
+           '- **Evidence:** `build.py:62`, `other.py:9`, `build.py` (~L1180)\n\n## No status\n' + "x" * 400 + "\n\n"
+           '### Long\n- **Status:** Guess\n- **Evidence:** none yet\n' + "y" * 300 + "\n")
+    expect("entry standards", kb_audit.format_findings(std, 200, {"build.py"}),
+           [("status carries prose", 14, "Prose: Tested (net probe, 3000 frames offline, 2026-10-12"),
+            ("no Evidence line", 14, "Prose"),
+            ("status carries prose", 17, "Wrapped: Tested"),
+            ("code cited by line number", 17, "Wrapped: build.py"),
+            ("long entry", 25, "Long: 355 chars")])
+    with tempfile.TemporaryDirectory() as td:
+        kbl = Path(td)
+        (kbl / ".claude").mkdir()
+        (kbl / ".claude" / "habits.json").write_text(json.dumps({"knowledge_audit": {
+            "files": ["notes"], "leads": ["notes/LEADS.md"], "code_roots": ["."], "index": "notes/INDEX.txt"}}))
+        (kbl / "notes").mkdir()
+        (kbl / "notes" / "LEADS.md").write_text("## Idea\n- **Status:** maybe worth a look some day, see [x](gone.md)\n")
+        (kbl / "notes" / "FACTS.md").write_text("## Fact\n- **Status:** Tested\n- **Evidence:** run 1\n")
+        subprocess.run(["git", "init", "-q", str(kbl)], check=True)
+        r = subprocess.run([sys.executable, "-I", str(HABITS.parent / "kb_audit.py"), "--project", str(kbl), "--json"],
+                           capture_output=True, text=True)
+        expect("leads: links checked, no format findings", sorted(json.loads(r.stdout or "{}")), ["broken link"])
+        expect("leads: left out of the index",
+               [l.split(" ")[0] for l in (kbl / "notes" / "INDEX.txt").read_text().splitlines()[2:]], ["FACTS.md#fact"])
+        runs = kbl / "transcripts" / "s1" / "subagents"
+        runs.mkdir(parents=True)
+        (runs / "agent-a1.meta.json").write_text(json.dumps({"agentType": "agent-habits:librarian"}))
+        expect("librarian use: a run with no transcript file is skipped",
+               kb_audit.librarian_use(kbl, {"transcripts": [str(kbl / "transcripts")]}, [])["modes"], {})
+        import habits
+        cfg = {"knowledge_audit": {"report": "notes/AUDIT.md"}}
+        expect("audit due: no report yet", "no report yet" in habits.audit_due(cfg, kbl), True)
+        (kbl / "notes" / "AUDIT.md").write_text("x\n")
+        expect("audit due: fresh report says nothing", habits.audit_due(cfg, kbl), "")
+        old = time.time() - 9 * 86400
+        os.utime(kbl / "notes" / "AUDIT.md", (old, old))
+        expect("audit due: 9 days old", "9 days old" in habits.audit_due(cfg, kbl), True)
+        expect("audit due: every_days 0 turns it off",
+               habits.audit_due({"knowledge_audit": {"report": "notes/AUDIT.md", "every_days": 0}}, kbl), "")
 
     # agent_stats: a background run whose file the main session re-reads after the notification, a foreground run
     # whose file is read only before its answer and past the window
